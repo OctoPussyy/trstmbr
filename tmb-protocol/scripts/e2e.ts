@@ -35,7 +35,7 @@ import { airdropIfLow, arg, clusterArg, context, ensureMockMints, flag, fundDevV
 
   const mkPlayer = async (label: string) => {
     const kp = Keypair.generate();
-    const t = new Transaction().add(SystemProgram.transfer({ fromPubkey: ctx.payer.publicKey, toPubkey: kp.publicKey, lamports: 1 * LAMPORTS_PER_SOL }));
+    const t = new Transaction().add(SystemProgram.transfer({ fromPubkey: ctx.payer.publicKey, toPubkey: kp.publicKey, lamports: (cluster === "localnet" ? 1 : 0.6) * LAMPORTS_PER_SOL }));
     await ctx.client.provider.sendAndConfirm(t);
     const ata = await getOrCreateAssociatedTokenAccount(ctx.conn, ctx.payer, tmbMint, kp.publicKey);
     // the payer holds the mock supply; move some bags to the player

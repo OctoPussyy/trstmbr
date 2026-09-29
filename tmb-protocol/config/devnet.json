@@ -1,20 +1,42 @@
 {
   "cluster": "devnet",
   "rpc_url": "https://api.devnet.solana.com",
-  "game_program_id": "",
-  "tmb_mint": "",
-  "collection_address": "",
-  "reward_vault": "",
-  "treasury_wallet": "",
-  "admin_authority": "",
+  "game_program_id": "Axew8h91qZGHhxWBeapvx8Fd7EXVk82xYQCY6kxRcBNv",
+  "tmb_mint": "5Vy8uZ5wTd4ao7bjy42UXWTW1eTzeiw5JaYGBrPWKoQr",
+  "collection_address": "HkaoSHw7tsjbY6u4XvyqngRJmELXVLAG6g6i4bcjzoV5",
+  "reward_vault": "82EAbQQS2qNwQjh2qPmnj1dYUmVzwWNbUPZGjc3xquMU",
+  "treasury_wallet": "HQe3F8CBTY3kf8Snms6cxMuRvThZHUgeLGq8RHx1cks6",
+  "admin_authority": "HQe3F8CBTY3kf8Snms6cxMuRvThZHUgeLGq8RHx1cks6",
   "params": {
     "tmb_decimals": 6,
     "burn_at_loss_streak": 5,
-    "spin_amounts": [25, 50, 100, 0],
-    "odds_bps": [200, 800, 2000, 3500],
-    "thresholds": { "low_tmb": 50, "medium_tmb": 200, "high_tmb": 500, "stock_count_low": 3, "stock_value_low": 50, "stock_tmb_high": 200 },
+    "spin_amounts": [
+      25,
+      50,
+      100,
+      0
+    ],
+    "odds_bps": [
+      200,
+      800,
+      2000,
+      3500
+    ],
+    "thresholds": {
+      "low_tmb": 50,
+      "medium_tmb": 200,
+      "high_tmb": 500,
+      "stock_count_low": 3,
+      "stock_value_low": 50,
+      "stock_tmb_high": 200
+    },
     "rescue_burn_bps": 5000,
-    "rescue_fee_options": [100, 250, 500, 1000],
+    "rescue_fee_options": [
+      100,
+      250,
+      500,
+      1000
+    ],
     "max_payout_bps": 200,
     "min_reserve": 1000,
     "mint_price_lamports": 25000000,

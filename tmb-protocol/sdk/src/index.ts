@@ -362,17 +362,14 @@ export class TmbClient {
     const revealIxs = await this.randomness.reveal(this.connection, this.wallet, randomness);
     const bonusAsset = Keypair.generate();
     const settleIx = await this.settleIx({ settler: payer, asset, owner, randomness, bonusAsset: bonusAsset.publicKey, cfg });
-    const tx = new Transaction().add(
-      ComputeBudgetProgram.setComputeUnitLimit({ units: opts.settleComputeUnits ?? 600_000 }),
-      ...revealIxs,
-      settleIx,
-    );
-    let sig: string;
-    if (opts.settler) {
-      sig = await sendAndConfirmTransaction(this.connection, tx, [opts.settler, bonusAsset], { commitment: "confirmed" });
-    } else {
-      sig = await this.provider.sendAndConfirm(tx, [bonusAsset]);
-    }
+    // Switchboard's reveal ix is large, so it goes in its own tx (a combined tx exceeds 1232 bytes).
+    const send = async (ixs: TransactionInstruction[], extra: Signer[]) => {
+      const tx = new Transaction().add(...ixs);
+      if (opts.settler) return sendAndConfirmTransaction(this.connection, tx, [opts.settler, ...extra], { commitment: "confirmed" });
+      return this.provider.sendAndConfirm(tx, extra);
+    };
+    await send([ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }), ...revealIxs], []);
+    const sig = await send([ComputeBudgetProgram.setComputeUnitLimit({ units: opts.settleComputeUnits ?? 600_000 }), settleIx], [bonusAsset]);
     return this.readSettled(sig);
   }
 
