@@ -53,6 +53,182 @@ export type TmbGame = {
       "args": []
     },
     {
+      "name": "buyTmb",
+      "discriminator": [
+        142,
+        167,
+        120,
+        155,
+        179,
+        115,
+        135,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset"
+        },
+        {
+          "name": "broRecord",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  111
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true
+        },
+        {
+          "name": "tmbMint"
+        },
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaultTmb",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "tmbMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "cancelStaleSpin",
       "discriminator": [
         163,
@@ -1878,6 +2054,75 @@ export type TmbGame = {
       ]
     },
     {
+      "name": "setTmbPrice",
+      "discriminator": [
+        127,
+        227,
+        198,
+        244,
+        67,
+        228,
+        209,
+        231
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "price",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "lamportsPerTmb",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "settleSpin",
       "discriminator": [
         213,
@@ -2718,6 +2963,19 @@ export type TmbGame = {
         67,
         236
       ]
+    },
+    {
+      "name": "tmbPrice",
+      "discriminator": [
+        219,
+        70,
+        223,
+        255,
+        177,
+        27,
+        47,
+        234
+      ]
     }
   ],
   "events": [
@@ -2917,6 +3175,19 @@ export type TmbGame = {
       ]
     },
     {
+      "name": "tmbBought",
+      "discriminator": [
+        133,
+        208,
+        149,
+        113,
+        93,
+        78,
+        13,
+        221
+      ]
+    },
+    {
       "name": "tmbDeposited",
       "discriminator": [
         49,
@@ -2927,6 +3198,19 @@ export type TmbGame = {
         174,
         137,
         50
+      ]
+    },
+    {
+      "name": "tmbPriceSet",
+      "discriminator": [
+        216,
+        203,
+        126,
+        130,
+        193,
+        147,
+        194,
+        57
       ]
     },
     {
@@ -3127,6 +3411,11 @@ export type TmbGame = {
     },
     {
       "code": 6031,
+      "name": "priceNotSet",
+      "msg": "The TMB price has not been set yet."
+    },
+    {
+      "code": 6032,
       "name": "missingAccounts",
       "msg": "A required account (prize vault or bonus asset) was not supplied."
     }
@@ -4101,6 +4390,34 @@ export type TmbGame = {
       }
     },
     {
+      "name": "tmbBought",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "lamportsPaid",
+            "type": "u64"
+          },
+          {
+            "name": "newBalance",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "tmbDeposited",
       "type": {
         "kind": "struct",
@@ -4120,6 +4437,44 @@ export type TmbGame = {
           {
             "name": "newBalance",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tmbPrice",
+      "docs": [
+        "SOL price of TMB, kept in its own account so the (already deployed) Config layout is untouched."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lamportsPerTmb",
+            "docs": [
+              "Lamports per ONE whole TMB (10^decimals base units)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "tmbPriceSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lamportsPerTmb",
+            "type": "u64"
+          },
+          {
+            "name": "by",
+            "type": "pubkey"
           }
         ]
       }

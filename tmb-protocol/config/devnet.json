@@ -51,6 +51,7 @@
     "collection_name": "Trust Me Bros (devnet)",
     "collection_uri": "https://raw.githubusercontent.com/OctoPussyy/trstmbr/claude/build-complete-feature-adg350/tmb-protocol/assets/bros/metadata/1.json",
     "bonus_uri": "",
-    "assets_base_url": "https://raw.githubusercontent.com/OctoPussyy/trstmbr/claude/build-complete-feature-adg350/tmb-protocol/assets/bros"
+    "assets_base_url": "https://raw.githubusercontent.com/OctoPussyy/trstmbr/claude/build-complete-feature-adg350/tmb-protocol/assets/bros",
+    "tmb_price_lamports": 1000
   }
 }

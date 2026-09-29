@@ -1,4 +1,5 @@
 pub mod accept_authority;
+pub mod buy_tmb;
 pub mod cancel_stale_spin;
 pub mod claim_holding;
 pub mod create_collection;
@@ -13,6 +14,7 @@ pub mod rescue;
 pub mod set_paused;
 pub mod set_prizes;
 pub mod set_roles;
+pub mod set_tmb_price;
 pub mod settle_spin;
 pub mod update_config;
 pub mod withdraw_bro;
@@ -21,6 +23,8 @@ pub mod withdraw_vault;
 
 #[allow(ambiguous_glob_reexports)]
 pub use accept_authority::*;
+#[allow(ambiguous_glob_reexports)]
+pub use buy_tmb::*;
 #[allow(ambiguous_glob_reexports)]
 pub use cancel_stale_spin::*;
 #[allow(ambiguous_glob_reexports)]
@@ -49,6 +53,8 @@ pub use set_paused::*;
 pub use set_prizes::*;
 #[allow(ambiguous_glob_reexports)]
 pub use set_roles::*;
+#[allow(ambiguous_glob_reexports)]
+pub use set_tmb_price::*;
 #[allow(ambiguous_glob_reexports)]
 pub use settle_spin::*;
 #[allow(ambiguous_glob_reexports)]

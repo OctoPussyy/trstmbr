@@ -217,6 +217,37 @@ describe("tmb_game", function () {
     await invariants();
   });
 
+  it("3c. buy_tmb charges SOL (not TMB) and credits the Bro from the pool", async () => {
+    const asset: PublicKey = (globalThis as any).broA1;
+    // no price yet -> the price account doesn't exist
+    await failsAny(A.client.buyTmb(asset, tmb(100)), "AccountNotInitialized", "3012");
+    await fails(A.client.setTmbPrice(1000), "Unauthorized"); // A is not the authority
+    await admin.client.setTmbPrice(1000); // 0.0001 SOL per 100 TMB
+    expect((await A.client.fetchTmbPrice())!.toString()).to.equal("1000");
+
+    const tmbWallet = await tokenBalance(conn, tmbMint, A.kp.publicKey);
+    const t0 = await conn.getBalance(treasury.publicKey);
+    const balBefore = (await A.client.fetchBro(asset))!.tmbBalance;
+    await A.client.buyTmb(asset, tmb(100));
+    expect((await conn.getBalance(treasury.publicKey)) - t0).to.equal(100_000); // 0.0001 SOL
+    expect(await tokenBalance(conn, tmbMint, A.kp.publicKey)).to.equal(tmbWallet); // wallet TMB untouched
+    expect((await A.client.fetchBro(asset))!.tmbBalance.sub(balBefore).toString()).to.equal(tmb(100).toString());
+    // dust rounds UP, never free
+    expect(TmbClient.quoteTmb(new BN(1000), new BN(1)).toString()).to.equal("1");
+    await invariants();
+
+    // reserve floor + pending spin + paused are enforced
+    const pool = await admin.client.fetchPool();
+    await admin.client.updateConfig({ minReserve: pool });
+    await fails(A.client.buyTmb(asset, tmb(1)), "PoolReserveBreached");
+    await admin.client.updateConfig({ minReserve: tmb(1000) });
+    await admin.client.setPaused(true);
+    await fails(A.client.buyTmb(asset, tmb(1)), "Paused");
+    await admin.client.setPaused(false);
+    await A.client.withdrawTmb(asset, tmb(100)); // restore 225 for the following tests
+    await invariants();
+  });
+
   it("4. transfer to wallet B -> fresh record (streak 0); back to A -> A's old streak returns", async () => {
     const asset: PublicKey = (globalThis as any).broA1;
     await A.client.withdrawBro(asset);

@@ -22,6 +22,7 @@ pub const BRO_SEED: &[u8] = b"bro";
 pub const ESCROW_SEED: &[u8] = b"escrow";
 pub const SPIN_SEED: &[u8] = b"spin";
 pub const GRAVEYARD_SEED: &[u8] = b"burned";
+pub const PRICE_SEED: &[u8] = b"price";
 
 // --- limits ---------------------------------------------------------------------------------
 pub const MAX_PRIZES: usize = 16;

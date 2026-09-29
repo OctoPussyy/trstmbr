@@ -64,6 +64,8 @@ pub enum TmbError {
     InvalidAmount,
     #[msg("No pending authority proposal.")]
     NoPendingAuthority,
+    #[msg("The TMB price has not been set yet.")]
+    PriceNotSet,
     #[msg("A required account (prize vault or bonus asset) was not supplied.")]
     MissingAccounts,
 }

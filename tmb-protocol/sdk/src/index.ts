@@ -290,6 +290,48 @@ export class TmbClient {
     return this.program.methods.depositTmb(new BN(amount.toString())).accountsPartial(await this.tmbAccounts(asset)).rpc();
   }
 
+  /** SOL price of ONE whole TMB in lamports, or null if the admin hasn't set it yet. */
+  async fetchTmbPrice(): Promise<BN | null> {
+    const p = await this.program.account.tmbPrice.fetchNullable(this.pdas.price);
+    return p ? (p.lamportsPerTmb as BN) : null;
+  }
+
+  /** Lamports needed to buy `amount` TMB base units (rounded UP, same as the program). */
+  static quoteTmb(lamportsPerTmb: BN, amount: BN | number | bigint, decimals = 6): BN {
+    const unit = new BN(10).pow(new BN(decimals));
+    return new BN(amount.toString()).mul(lamportsPerTmb).add(unit.subn(1)).div(unit);
+  }
+
+  /** Buy TMB with SOL, credited straight to the Bro's balance (the website's "+100 TMB"). */
+  async buyTmb(asset: PublicKey, amount: BN | number | bigint): Promise<string> {
+    const cfg = await this.fetchConfig();
+    const tokenProgram = await this.tokenProgramFor(cfg.tmbMint);
+    return this.program.methods
+      .buyTmb(new BN(amount.toString()))
+      .accountsPartial({
+        player: this.me,
+        config: this.pdas.config,
+        asset,
+        broRecord: this.pdas.bro(asset, this.me),
+        price: this.pdas.price,
+        treasury: cfg.treasury,
+        tmbMint: cfg.tmbMint,
+        vault: this.pdas.vault,
+        vaultTmb: getAssociatedTokenAddressSync(cfg.tmbMint, this.pdas.vault, true, tokenProgram),
+        tokenProgram,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+  }
+
+  /** Admin: SOL price (lamports) of one whole TMB. */
+  async setTmbPrice(lamportsPerTmb: BN | number | bigint): Promise<string> {
+    return this.program.methods
+      .setTmbPrice(new BN(lamportsPerTmb.toString()))
+      .accountsPartial({ authority: this.me, config: this.pdas.config, price: this.pdas.price, systemProgram: SystemProgram.programId })
+      .rpc();
+  }
+
   async withdrawTmb(asset: PublicKey, amount: BN | number | bigint): Promise<string> {
     return this.program.methods.withdrawTmb(new BN(amount.toString())).accountsPartial(await this.tmbAccounts(asset)).rpc();
   }

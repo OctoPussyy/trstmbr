@@ -198,6 +198,10 @@ export async function initProtocol(ctx: Ctx) {
   const { prizes, path: pp } = loadPrizes(ctx.cluster, p.tmb_decimals);
   console.log(`set_prizes from ${path.relative(ROOT, pp)} ...`);
   await client.setPrizes(prizes);
+  if (p.tmb_price_lamports) {
+    console.log(`set_tmb_price ${p.tmb_price_lamports} lamports per TMB ...`);
+    await client.setTmbPrice(p.tmb_price_lamports);
+  }
 }
 
 /** Funds the reward vault (TMB + prize tokens) from the payer's wallet. */

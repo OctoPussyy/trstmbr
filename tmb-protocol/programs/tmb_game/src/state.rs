@@ -159,3 +159,12 @@ pub struct Graveyard {
     pub name: String,
     pub bump: u8,
 }
+
+/// SOL price of TMB, kept in its own account so the (already deployed) Config layout is untouched.
+#[account]
+#[derive(InitSpace)]
+pub struct TmbPrice {
+    /// Lamports per ONE whole TMB (10^decimals base units).
+    pub lamports_per_tmb: u64,
+    pub bump: u8,
+}

@@ -79,6 +79,12 @@ pub mod tmb_game {
     pub fn deposit_tmb(ctx: Context<DepositTmb>, amount: u64) -> Result<()> {
         instructions::deposit_tmb::handler(ctx, amount)
     }
+    pub fn set_tmb_price(ctx: Context<SetTmbPrice>, lamports_per_tmb: u64) -> Result<()> {
+        instructions::set_tmb_price::handler(ctx, lamports_per_tmb)
+    }
+    pub fn buy_tmb(ctx: Context<BuyTmb>, amount: u64) -> Result<()> {
+        instructions::buy_tmb::handler(ctx, amount)
+    }
     pub fn withdraw_tmb(ctx: Context<WithdrawTmb>, amount: u64) -> Result<()> {
         instructions::withdraw_tmb::handler(ctx, amount)
     }

@@ -36,6 +36,8 @@ export interface ParamsJson {
   bonus_uri: string;
   /** Public folder holding 1..5.png + metadata/1..5.json (see scripts/make-metadata.ts) */
   assets_base_url?: string;
+  /** SOL price (lamports) of ONE whole TMB for `buy_tmb`; devnet test price = 1000 (0.0001 SOL per 100 TMB) */
+  tmb_price_lamports?: number;
 }
 
 const scale = (ui: number, decimals: number) => new BN(Math.round(ui * 10 ** decimals).toString());

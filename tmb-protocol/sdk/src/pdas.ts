@@ -21,6 +21,7 @@ export function findPdas(programId: PublicKey) {
     config: f([enc("config")]),
     prizes: f([enc("prizes")]),
     vault: f([enc("vault")]),
+    price: f([enc("price")]),
     escrowAuth: f([enc("escrow_auth")]),
     bro: (asset: PublicKey, owner: PublicKey) => f([enc("bro"), asset.toBuffer(), owner.toBuffer()]),
     escrow: (asset: PublicKey) => f([enc("escrow"), asset.toBuffer()]),

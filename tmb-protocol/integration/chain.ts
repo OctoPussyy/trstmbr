@@ -237,9 +237,16 @@ async function viewOf(client: TmbClient, nftId: string) {
   return b ? nftView(b, id, tickerByMint) : null;
 }
 
+/** "+N TMB" now costs SOL (price set on-chain by the admin), credited straight to the Bro. */
 export async function topUpNftChain(client: TmbClient, nftId: string, amount: number) {
-  await client.depositTmb(new PublicKey(nftId), toBase(amount));
+  await client.buyTmb(new PublicKey(nftId), toBase(amount));
   return { nft: await viewOf(client, nftId) };
+}
+
+/** SOL cost of `amount` TMB, to show next to the "+100 TMB" button. null = price not set yet. */
+export async function quoteTopUpChain(client: TmbClient, amount: number): Promise<number | null> {
+  const price = await client.fetchTmbPrice();
+  return price ? Number(TmbClient.quoteTmb(price, toBase(amount)).toString()) / 1e9 : null;
 }
 
 export async function setBroEscrowChain(client: TmbClient, nftId: string, status: "wallet" | "escrow") {

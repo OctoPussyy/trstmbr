@@ -136,3 +136,16 @@ pub struct Rescued {
     pub burned_amount: u64,
     pub credited: u64,
 }
+#[event]
+pub struct TmbPriceSet {
+    pub lamports_per_tmb: u64,
+    pub by: Pubkey,
+}
+#[event]
+pub struct TmbBought {
+    pub asset: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub lamports_paid: u64,
+    pub new_balance: u64,
+}
