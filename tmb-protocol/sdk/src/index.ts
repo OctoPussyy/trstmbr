@@ -1,3 +1,4 @@
+import "./polyfill";
 import { AnchorProvider, BN, EventParser, Program } from "@coral-xyz/anchor";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
