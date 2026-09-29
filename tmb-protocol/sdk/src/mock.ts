@@ -37,7 +37,7 @@ export class MockSwitchboardRandomness implements RandomnessProvider {
     return v;
   }
 
-  async commit(connection: Connection, wallet: WalletLike): Promise<RandomnessCommit> {
+  async commit(connection: Connection, wallet: WalletLike, _opts?: { fresh?: boolean }): Promise<RandomnessCommit> {
     const kp = Keypair.generate();
     const rent = await connection.getMinimumBalanceForRentExemption(MOCK_RANDOMNESS_LEN);
     const create = SystemProgram.createAccount({
@@ -66,7 +66,7 @@ export class MockSwitchboardRandomness implements RandomnessProvider {
     return { randomness: kp.publicKey, commitIxs: [create, commit], signers: [kp] };
   }
 
-  async reveal(_c: Connection, _w: WalletLike, randomness: PublicKey): Promise<TransactionInstruction[]> {
+  async reveal(_c: Connection, _w: WalletLike, randomness: PublicKey, _payer?: PublicKey): Promise<TransactionInstruction[]> {
     return [
       new TransactionInstruction({
         programId: this.programId,

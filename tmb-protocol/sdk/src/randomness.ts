@@ -11,9 +11,17 @@ export interface RandomnessCommit {
 }
 
 export interface RandomnessProvider {
-  commit(connection: Connection, wallet: WalletLike): Promise<RandomnessCommit>;
-  /** ixs placed BEFORE settle_spin in the settle transaction (oracle reveal). */
-  reveal(connection: Connection, wallet: WalletLike, randomness: PublicKey): Promise<TransactionInstruction[]>;
+  /** `fresh: true` forces a brand-new randomness account (never reuse one that may have a pending spin). */
+  commit(connection: Connection, wallet: WalletLike, opts?: { fresh?: boolean }): Promise<RandomnessCommit>;
+  /** ixs for the oracle reveal. `payer` (default: the wallet) pays for / signs the reveal tx. */
+  reveal(connection: Connection, wallet: WalletLike, randomness: PublicKey, payer?: PublicKey): Promise<TransactionInstruction[]>;
+}
+
+/** Where a wallet's reusable randomness keypair is kept between spins (e.g. localStorage, per wallet). */
+export interface RandomnessPersist {
+  load(): number[] | null;
+  save(secretKey: number[]): void;
+  clear(): void;
 }
 
 /**
@@ -25,7 +33,7 @@ export class SwitchboardRandomness implements RandomnessProvider {
   private cache?: { sb: any; program: any; queue: PublicKey };
   private revealHandles = new Map<string, any>();
 
-  constructor(private readonly opts: { queue?: PublicKey } = {}) {}
+  constructor(private readonly opts: { queue?: PublicKey; persist?: RandomnessPersist } = {}) {}
 
   private async load(connection: Connection, wallet: WalletLike) {
     if (this.cache) return this.cache;
@@ -37,23 +45,36 @@ export class SwitchboardRandomness implements RandomnessProvider {
     return this.cache;
   }
 
-  async commit(connection: Connection, wallet: WalletLike): Promise<RandomnessCommit> {
+  async commit(connection: Connection, wallet: WalletLike, opts: { fresh?: boolean } = {}): Promise<RandomnessCommit> {
     const { sb, program, queue } = await this.load(connection, wallet);
+    // Reuse the wallet's randomness account: re-committing costs no rent (a new account costs ~0.007 SOL).
+    const saved = !opts.fresh ? this.opts.persist?.load() : null;
+    if (saved) {
+      const old = Keypair.fromSecretKey(Uint8Array.from(saved));
+      if (await connection.getAccountInfo(old.publicKey)) {
+        const r = new sb.Randomness(program, old.publicKey);
+        const commitIx = await r.commitIx(queue, wallet.publicKey);
+        this.revealHandles.set(old.publicKey.toBase58(), r);
+        return { randomness: old.publicKey, commitIxs: [commitIx], signers: [] };
+      }
+      this.opts.persist?.clear();
+    }
     const kp = Keypair.generate();
     const [randomness, createIx] = await sb.Randomness.create(program, kp, queue, wallet.publicKey);
     const commitIx = await randomness.commitIx(queue, wallet.publicKey);
     this.revealHandles.set(randomness.pubkey.toBase58(), randomness);
+    this.opts.persist?.save(Array.from(kp.secretKey));
     return { randomness: randomness.pubkey, commitIxs: [createIx, commitIx], signers: [kp] };
   }
 
-  async reveal(connection: Connection, wallet: WalletLike, randomness: PublicKey): Promise<TransactionInstruction[]> {
+  async reveal(connection: Connection, wallet: WalletLike, randomness: PublicKey, payer?: PublicKey): Promise<TransactionInstruction[]> {
     const { sb, program } = await this.load(connection, wallet);
     const handle = this.revealHandles.get(randomness.toBase58()) ?? new sb.Randomness(program, randomness);
     // The oracle gateway needs a moment after the commit lands; retry with backoff.
     let lastErr: unknown;
     for (let i = 0; i < 20; i++) {
       try {
-        return [await handle.revealIx(wallet.publicKey)];
+        return [await handle.revealIx(payer ?? wallet.publicKey)];
       } catch (e) {
         lastErr = e;
         await new Promise((r) => setTimeout(r, 1000 + i * 250));

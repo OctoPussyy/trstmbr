@@ -15,6 +15,8 @@ export declare class MockSwitchboardRandomness implements RandomnessProvider {
     constructor(programId?: PublicKey);
     /** Random bytes that produce the requested r1 (win roll, 0..9999) and r2 (prize roll). */
     static valueFor(r1: number, r2?: bigint): Uint8Array;
-    commit(connection: Connection, wallet: WalletLike): Promise<RandomnessCommit>;
-    reveal(_c: Connection, _w: WalletLike, randomness: PublicKey): Promise<TransactionInstruction[]>;
+    commit(connection: Connection, wallet: WalletLike, _opts?: {
+        fresh?: boolean;
+    }): Promise<RandomnessCommit>;
+    reveal(_c: Connection, _w: WalletLike, randomness: PublicKey, _payer?: PublicKey): Promise<TransactionInstruction[]>;
 }

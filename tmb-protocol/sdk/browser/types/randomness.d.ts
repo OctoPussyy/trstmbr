@@ -9,9 +9,18 @@ export interface RandomnessCommit {
     signers: Signer[];
 }
 export interface RandomnessProvider {
-    commit(connection: Connection, wallet: WalletLike): Promise<RandomnessCommit>;
-    /** ixs placed BEFORE settle_spin in the settle transaction (oracle reveal). */
-    reveal(connection: Connection, wallet: WalletLike, randomness: PublicKey): Promise<TransactionInstruction[]>;
+    /** `fresh: true` forces a brand-new randomness account (never reuse one that may have a pending spin). */
+    commit(connection: Connection, wallet: WalletLike, opts?: {
+        fresh?: boolean;
+    }): Promise<RandomnessCommit>;
+    /** ixs for the oracle reveal. `payer` (default: the wallet) pays for / signs the reveal tx. */
+    reveal(connection: Connection, wallet: WalletLike, randomness: PublicKey, payer?: PublicKey): Promise<TransactionInstruction[]>;
+}
+/** Where a wallet's reusable randomness keypair is kept between spins (e.g. localStorage, per wallet). */
+export interface RandomnessPersist {
+    load(): number[] | null;
+    save(secretKey: number[]): void;
+    clear(): void;
 }
 /**
  * Switchboard On-Demand. Flow per spin:
@@ -24,8 +33,11 @@ export declare class SwitchboardRandomness implements RandomnessProvider {
     private revealHandles;
     constructor(opts?: {
         queue?: PublicKey;
+        persist?: RandomnessPersist;
     });
     private load;
-    commit(connection: Connection, wallet: WalletLike): Promise<RandomnessCommit>;
-    reveal(connection: Connection, wallet: WalletLike, randomness: PublicKey): Promise<TransactionInstruction[]>;
+    commit(connection: Connection, wallet: WalletLike, opts?: {
+        fresh?: boolean;
+    }): Promise<RandomnessCommit>;
+    reveal(connection: Connection, wallet: WalletLike, randomness: PublicKey, payer?: PublicKey): Promise<TransactionInstruction[]>;
 }

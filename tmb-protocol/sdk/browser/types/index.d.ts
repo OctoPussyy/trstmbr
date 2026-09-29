@@ -27,6 +27,12 @@ export interface SpinOptions {
     onRequested?: (signature: string) => void;
     /** Compute unit limit for the settle tx. */
     settleComputeUnits?: number;
+    /**
+     * With `settler`: if the settler's SOL balance is below `settlerMinLamports` (default 0.01 SOL), the
+     * REQUEST tx (the only wallet prompt) also tops it up by `settlerTopUpLamports` (default 0.02 SOL).
+     */
+    settlerMinLamports?: number;
+    settlerTopUpLamports?: number;
 }
 export declare class TmbClient {
     readonly connection: Connection;
@@ -82,7 +88,12 @@ export declare class TmbClient {
      */
     spin(asset: PublicKey, amount: BN | number | bigint, opts?: SpinOptions): Promise<SpinSettled>;
     /** Step 1 of `spin`. Exposed so UIs can animate between request and settle. */
-    requestSpin(asset: PublicKey, amount: BN | number | bigint): Promise<{
+    requestSpin(asset: PublicKey, amount: BN | number | bigint, opts?: {
+        fundSettler?: {
+            to: PublicKey;
+            lamports: number;
+        };
+    }): Promise<{
         requestSig: string;
         spinRequest: PublicKey;
         randomness: PublicKey;

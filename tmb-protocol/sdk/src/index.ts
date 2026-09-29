@@ -60,6 +60,12 @@ export interface SpinOptions {
   onRequested?: (signature: string) => void;
   /** Compute unit limit for the settle tx. */
   settleComputeUnits?: number;
+  /**
+   * With `settler`: if the settler's SOL balance is below `settlerMinLamports` (default 0.01 SOL), the
+   * REQUEST tx (the only wallet prompt) also tops it up by `settlerTopUpLamports` (default 0.02 SOL).
+   */
+  settlerMinLamports?: number;
+  settlerTopUpLamports?: number;
 }
 
 const enc = (s: string) => Buffer.from(s);
@@ -364,16 +370,32 @@ export class TmbClient {
    * Resolves with the decoded `SpinSettled` event. `amount` is in TMB base units.
    */
   async spin(asset: PublicKey, amount: BN | number | bigint, opts: SpinOptions = {}): Promise<SpinSettled> {
-    const { requestSig, spinRequest, randomness } = await this.requestSpin(asset, amount);
+    let fundSettler: { to: PublicKey; lamports: number } | undefined;
+    if (opts.settler) {
+      const bal = await this.connection.getBalance(opts.settler.publicKey);
+      if (bal < (opts.settlerMinLamports ?? 10_000_000)) {
+        fundSettler = { to: opts.settler.publicKey, lamports: opts.settlerTopUpLamports ?? 20_000_000 };
+      }
+    }
+    const { requestSig, spinRequest, randomness } = await this.requestSpin(asset, amount, { fundSettler });
     opts.onRequested?.(requestSig);
     return this.settleSpin(asset, spinRequest, randomness, opts);
   }
 
   /** Step 1 of `spin`. Exposed so UIs can animate between request and settle. */
-  async requestSpin(asset: PublicKey, amount: BN | number | bigint) {
+  async requestSpin(
+    asset: PublicKey,
+    amount: BN | number | bigint,
+    opts: { fundSettler?: { to: PublicKey; lamports: number } } = {},
+  ) {
     const rec = await this.fetchBro(asset);
     if (!rec) throw new Error("no BroRecord for this wallet/asset (deposit the Bro first)");
-    const commit = await this.randomness.commit(this.connection, this.wallet);
+    // A randomness account may only be re-committed when none of this wallet's spins is still pending.
+    const mine = (await this.program.account.broRecord.all([
+      { memcmp: { offset: 8 + 32, bytes: this.me.toBase58() } },
+    ])) as unknown as { account: BroRecord }[];
+    const anyPending = mine.some((r) => r.account.pendingSpin !== null);
+    const commit = await this.randomness.commit(this.connection, this.wallet, { fresh: anyPending });
     const spinRequest = this.pdas.spin(asset, rec.totalSpins);
     const requestIx = await this.program.methods
       .requestSpin(new BN(amount.toString()))
@@ -387,7 +409,11 @@ export class TmbClient {
         systemProgram: SystemProgram.programId,
       })
       .instruction();
-    const tx = new Transaction().add(ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }), ...commit.commitIxs, requestIx);
+    const tx = new Transaction().add(ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }));
+    if (opts.fundSettler) {
+      tx.add(SystemProgram.transfer({ fromPubkey: this.me, toPubkey: opts.fundSettler.to, lamports: opts.fundSettler.lamports }));
+    }
+    tx.add(...commit.commitIxs, requestIx);
     const requestSig = await this.provider.sendAndConfirm(tx, commit.signers as Signer[]);
     return { requestSig, spinRequest, randomness: commit.randomness };
   }
@@ -402,17 +428,40 @@ export class TmbClient {
     const cfg = await this.fetchConfig();
     const owner = opts.owner ?? this.me;
     const payer = opts.settler?.publicKey ?? this.me;
-    const revealIxs = await this.randomness.reveal(this.connection, this.wallet, randomness);
+    const revealIxs = await this.randomness.reveal(this.connection, this.wallet, randomness, payer);
     const bonusAsset = Keypair.generate();
     const settleIx = await this.settleIx({ settler: payer, asset, owner, randomness, bonusAsset: bonusAsset.publicKey, cfg });
-    // Switchboard's reveal ix is large, so it goes in its own tx (a combined tx exceeds 1232 bytes).
-    const send = async (ixs: TransactionInstruction[], extra: Signer[]) => {
-      const tx = new Transaction().add(...ixs);
-      if (opts.settler) return sendAndConfirmTransaction(this.connection, tx, [opts.settler, ...extra], { commitment: "confirmed" });
-      return this.provider.sendAndConfirm(tx, extra);
-    };
-    await send([ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }), ...revealIxs], []);
-    const sig = await send([ComputeBudgetProgram.setComputeUnitLimit({ units: opts.settleComputeUnits ?? 600_000 }), settleIx], [bonusAsset]);
+    // Switchboard's reveal ix is large, so reveal and settle are two txs (a combined tx exceeds 1232 bytes).
+    const cuReveal = ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 });
+    const cuSettle = ComputeBudgetProgram.setComputeUnitLimit({ units: opts.settleComputeUnits ?? 600_000 });
+    let sig: string;
+    if (opts.settler) {
+      // crank / session key pays and signs both txs (only valid if it is also the randomness authority)
+      const run = (ixs: TransactionInstruction[], extra: Signer[]) =>
+        sendAndConfirmTransaction(this.connection, new Transaction().add(...ixs), [opts.settler!, ...extra], { commitment: "confirmed" });
+      await run([cuReveal, ...revealIxs], []);
+      sig = await run([cuSettle, settleIx], [bonusAsset]);
+    } else {
+      // ONE wallet popup: sign both txs together, then send them in order.
+      const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("confirmed");
+      const mk = (ixs: TransactionInstruction[], extra: Signer[]) => {
+        const tx = new Transaction({ feePayer: this.me, blockhash, lastValidBlockHeight }).add(...ixs);
+        if (extra.length) tx.partialSign(...extra);
+        return tx;
+      };
+      const [revealTx, settleTx] = await this.wallet.signAllTransactions([
+        mk([cuReveal, ...revealIxs], []),
+        mk([cuSettle, settleIx], [bonusAsset]),
+      ]);
+      const send = async (tx: Transaction) => {
+        const s = await this.connection.sendRawTransaction(tx.serialize(), { preflightCommitment: "confirmed" });
+        const r = await this.connection.confirmTransaction({ signature: s, blockhash, lastValidBlockHeight }, "confirmed");
+        if (r.value.err) throw new Error(`transaction failed: ${JSON.stringify(r.value.err)}`);
+        return s;
+      };
+      await send(revealTx);
+      sig = await send(settleTx);
+    }
     return this.readSettled(sig);
   }
 
