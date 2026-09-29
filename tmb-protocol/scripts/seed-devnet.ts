@@ -28,7 +28,9 @@ import { airdropIfLow, arg, context, ensureMockMints, fundDevVault, isInitialize
 
   const n = Number(arg("bros", "3"));
   for (let i = 0; i < n; i++) {
-    const { asset } = await ctx.client.mintBro(`Test Bro #${i + 1}`, cfg.bonusUri || "https://example.com/tmb/bro.json");
+    const base = ctx.file.params.assets_base_url;
+    const pick = base ? pickBro(base) : { name: `Test Bro #${i + 1}`, uri: "https://example.com/tmb/bro.json" };
+    const { asset } = await ctx.client.mintBro(pick.name, pick.uri);
     await ctx.client.depositBro(asset);
     console.log(`minted + staked test Bro ${asset.toBase58()}`);
   }
