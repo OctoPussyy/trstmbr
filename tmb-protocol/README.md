@@ -176,3 +176,18 @@ web app's own source is not in this repo, so field names may need small adjustme
 Events are emitted for every state change (`SpinRequested`, `SpinSettled { asset, owner, amount, odds_tier, outcome, wedge_index, prize_id, new_streak, burned, new_balance, … }`, `Rescued`, …).
 Odds function (identical in `logic.rs` and `sdk/src/odds.ts`): `tmb ≥ high → high; stocks ≥ n ∧ tmb ≥ stock_tmb_high → high; tmb ≥ medium → medium; tmb ≥ low → low; stocks ≥ n ∧ value ≥ min → low; else near_impossible`.
 Win roll: `r1 = u16le(v[0..2]) % 10000 < odds_bps[tier]`; prize roll: `u64le(v[2..10]) % Σ eligible weights`.
+
+## Browser setup (Vite / TanStack Start / Lovable)
+
+The SDK loads in the browser, but Switchboard's helper package needs Node's `https.Agent` at load time. Add ONE of these to `vite.config.ts`:
+
+```ts
+// Option A (simplest, verified): alias https/http to the shim in sdk/shims/https.ts
+resolve: { alias: { https: "/src/shims/https.ts", http: "/src/shims/https.ts" } },
+define: { global: "globalThis" },
+
+// Option B (standard, covers every Node built-in): npm i -D vite-plugin-node-polyfills
+import { nodePolyfills } from "vite-plugin-node-polyfills";
+plugins: [nodePolyfills({ globals: { Buffer: true, global: true, process: true } })],
+```
+Copy `sdk/shims/https.ts` to `src/shims/https.ts` for option A. Symptom without it: `Ys.Agent is not a constructor` (minified name) on the first spin. `Buffer is not defined` is handled by the SDK itself (`sdk/src/polyfill.ts`).
