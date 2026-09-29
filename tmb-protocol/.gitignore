@@ -12,3 +12,4 @@ keys/
 .env
 .localnet-state.json
 config/prizes.localnet.json
+sdk/browser/tmb-sdk.iife.js

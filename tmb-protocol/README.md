@@ -177,22 +177,14 @@ Events are emitted for every state change (`SpinRequested`, `SpinSettled { asset
 Odds function (identical in `logic.rs` and `sdk/src/odds.ts`): `tmb ≥ high → high; stocks ≥ n ∧ tmb ≥ stock_tmb_high → high; tmb ≥ medium → medium; tmb ≥ low → low; stocks ≥ n ∧ value ≥ min → low; else near_impossible`.
 Win roll: `r1 = u16le(v[0..2]) % 10000 < odds_bps[tier]`; prize roll: `u64le(v[2..10]) % Σ eligible weights`.
 
-## Browser setup (Vite / TanStack Start / Lovable)
+## Browser setup — use the prebuilt bundle (no bundler config needed)
 
-Switchboard's packages expect two Node built-ins at load time: `https.Agent` and `events.EventEmitter`. In a browser bundle they are missing, which shows up as
-`Ys.Agent is not a constructor` and then `Class extends value undefined is not a constructor or null`. Fix once in `vite.config.ts` (verified by bundling the whole SDK for the browser and loading it):
+`sdk/browser/tmb-sdk.js` is the whole SDK (plus `web3` and `BN`) built into ONE self-contained ES module with every Node built-in it needs already
+inlined (`Buffer`, `events`, `https.Agent`, `crypto`, `stream`, …). Copy the `sdk/browser/` folder into your app (e.g. `src/vendor/tmb/`) and import from it:
 
 ```ts
-// npm i events buffer   (and copy sdk/shims/https.ts to src/shims/https.ts)
-resolve: {
-  alias: {
-    https: "/src/shims/https.ts",
-    http: "/src/shims/https.ts",
-    events: "events",
-    buffer: "buffer",
-  },
-},
-define: { global: "globalThis" },
+import { TmbClient, pickBro, web3, BN } from "@/vendor/tmb/tmb-sdk";
 ```
-Alternative: `npm i -D vite-plugin-node-polyfills` and `plugins: [nodePolyfills({ globals: { Buffer: true, global: true, process: true } })]` (do not combine with the aliases above).
-`Buffer is not defined` is handled by the SDK itself (`sdk/src/polyfill.ts`).
+No `npm install`, no `vite.config.ts` changes. Rebuild it after any program/SDK change with `npm -w @tmb/sdk run build:browser`.
+Verified in headless Chromium: load → mint → stake → buy TMB with SOL → real Switchboard spin on devnet → settled.
+Type declarations are in `sdk/browser/types/` (`tmb-sdk.d.ts` re-exports them).
