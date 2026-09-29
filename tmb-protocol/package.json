@@ -1,0 +1,49 @@
+{
+  "name": "tmb-protocol",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "sdk"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "anchor build",
+    "build:devnet": "anchor build -- --no-default-features --features devnet",
+    "build:mainnet": "anchor build -- --no-default-features --features mainnet",
+    "fixtures": "bash scripts/fetch-fixtures.sh",
+    "test": "anchor test",
+    "test:rust": "cargo test -p tmb_game",
+    "sdk:build": "npm -w @tmb/sdk run build",
+    "deploy:devnet": "ts-node scripts/deploy.ts --cluster devnet",
+    "deploy:mainnet": "ts-node scripts/deploy.ts --cluster mainnet",
+    "init:devnet": "ts-node scripts/init.ts --cluster devnet",
+    "init:mainnet": "ts-node scripts/init.ts --cluster mainnet",
+    "seed:devnet": "ts-node scripts/seed-devnet.ts",
+    "prizes:devnet": "ts-node scripts/sync-prizes.ts --cluster devnet",
+    "prizes:mainnet": "ts-node scripts/sync-prizes.ts --cluster mainnet",
+    "export:devnet": "ts-node scripts/export-addresses.ts --cluster devnet",
+    "export:mainnet": "ts-node scripts/export-addresses.ts --cluster mainnet",
+    "e2e": "ts-node scripts/e2e.ts",
+    "handover": "ts-node scripts/handover.ts"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.6",
+    "@types/chai": "^4.3.20",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.10.0",
+    "chai": "^4.5.0",
+    "mocha": "^10.8.2",
+    "prettier": "^3.4.2",
+    "ts-mocha": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "0.31.1",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.0",
+    "@tmb/sdk": "*"
+  }
+}

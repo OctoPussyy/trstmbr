@@ -1,0 +1,15 @@
+# TEST-ONLY stand-in for the Switchboard On-Demand program, loaded at the Switchboard program id on
+# localnet. It lets tests write randomness accounts (commit / reveal with a chosen value) so the real
+# tmb_game binary can be exercised deterministically. Never deploy this anywhere else.
+[package]
+name = "mock_switchboard"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+solana-program = "2.2"
+
+[workspace]

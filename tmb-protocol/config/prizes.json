@@ -1,0 +1,11 @@
+[
+  { "id": "tsla",    "kind": "Token",    "label": "TSLA Token",       "amount": 1,    "weight": 8,  "usd_value": 40, "token_decimals": 6, "mint": "" },
+  { "id": "gme",     "kind": "Token",    "label": "GME Token",        "amount": 1,    "weight": 12, "usd_value": 15, "token_decimals": 6, "mint": "" },
+  { "id": "doge",    "kind": "Token",    "label": "$DOGE Token",      "amount": 1,    "weight": 15, "usd_value": 5,  "token_decimals": 6, "mint": "" },
+  { "id": "tmb-10",  "kind": "Tmb",      "label": "10 TMB",           "amount": 10,   "weight": 20 },
+  { "id": "tmb-50",  "kind": "Tmb",      "label": "50 TMB",           "amount": 50,   "weight": 15 },
+  { "id": "tmb-150", "kind": "Tmb",      "label": "150 TMB",          "amount": 150,  "weight": 8 },
+  { "id": "tmb-1000","kind": "Tmb",      "label": "1000 TMB JACKPOT", "amount": 1000, "weight": 1 },
+  { "id": "bonus",   "kind": "BonusBro", "label": "Bonus Bro NFT",    "amount": 1,    "weight": 2 },
+  { "id": "rekt",    "kind": "None",     "label": "REKT",             "amount": 0,    "weight": 4 }
+]

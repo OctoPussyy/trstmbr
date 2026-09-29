@@ -1,0 +1,14 @@
+target/
+node_modules/
+dist/
+.anchor/
+test-ledger/
+tests/fixtures/*.so
+tests/mock_switchboard/target/
+# Program keypairs are SECRETS. Never commit them.
+target/deploy/*.json
+*.keypair.json
+keys/
+.env
+.localnet-state.json
+config/prizes.localnet.json
