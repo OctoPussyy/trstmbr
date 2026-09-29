@@ -179,15 +179,20 @@ Win roll: `r1 = u16le(v[0..2]) % 10000 < odds_bps[tier]`; prize roll: `u64le(v[2
 
 ## Browser setup (Vite / TanStack Start / Lovable)
 
-The SDK loads in the browser, but Switchboard's helper package needs Node's `https.Agent` at load time. Add ONE of these to `vite.config.ts`:
+Switchboard's packages expect two Node built-ins at load time: `https.Agent` and `events.EventEmitter`. In a browser bundle they are missing, which shows up as
+`Ys.Agent is not a constructor` and then `Class extends value undefined is not a constructor or null`. Fix once in `vite.config.ts` (verified by bundling the whole SDK for the browser and loading it):
 
 ```ts
-// Option A (simplest, verified): alias https/http to the shim in sdk/shims/https.ts
-resolve: { alias: { https: "/src/shims/https.ts", http: "/src/shims/https.ts" } },
+// npm i events buffer   (and copy sdk/shims/https.ts to src/shims/https.ts)
+resolve: {
+  alias: {
+    https: "/src/shims/https.ts",
+    http: "/src/shims/https.ts",
+    events: "events",
+    buffer: "buffer",
+  },
+},
 define: { global: "globalThis" },
-
-// Option B (standard, covers every Node built-in): npm i -D vite-plugin-node-polyfills
-import { nodePolyfills } from "vite-plugin-node-polyfills";
-plugins: [nodePolyfills({ globals: { Buffer: true, global: true, process: true } })],
 ```
-Copy `sdk/shims/https.ts` to `src/shims/https.ts` for option A. Symptom without it: `Ys.Agent is not a constructor` (minified name) on the first spin. `Buffer is not defined` is handled by the SDK itself (`sdk/src/polyfill.ts`).
+Alternative: `npm i -D vite-plugin-node-polyfills` and `plugins: [nodePolyfills({ globals: { Buffer: true, global: true, process: true } })]` (do not combine with the aliases above).
+`Buffer is not defined` is handled by the SDK itself (`sdk/src/polyfill.ts`).
