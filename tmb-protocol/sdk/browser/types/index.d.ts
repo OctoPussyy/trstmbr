@@ -80,6 +80,7 @@ export declare class TmbClient {
     buyTmb(asset: PublicKey, amount: BN | number | bigint): Promise<string>;
     /** Admin: SOL price (lamports) of one whole TMB. */
     setTmbPrice(lamportsPerTmb: BN | number | bigint): Promise<string>;
+    /** Bro balance -> wallet. Creates the wallet's TMB token account first if it doesn't have one yet. */
     withdrawTmb(asset: PublicKey, amount: BN | number | bigint): Promise<string>;
     claimHolding(asset: PublicKey, index: number): Promise<string>;
     /**

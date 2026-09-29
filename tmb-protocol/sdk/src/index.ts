@@ -3,6 +3,7 @@ import { AnchorProvider, BN, EventParser, Program } from "@coral-xyz/anchor";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
   TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
@@ -338,8 +339,16 @@ export class TmbClient {
       .rpc();
   }
 
+  /** Bro balance -> wallet. Creates the wallet's TMB token account first if it doesn't have one yet. */
   async withdrawTmb(asset: PublicKey, amount: BN | number | bigint): Promise<string> {
-    return this.program.methods.withdrawTmb(new BN(amount.toString())).accountsPartial(await this.tmbAccounts(asset)).rpc();
+    const accts = await this.tmbAccounts(asset);
+    return this.program.methods
+      .withdrawTmb(new BN(amount.toString()))
+      .accountsPartial(accts)
+      .preInstructions([
+        createAssociatedTokenAccountIdempotentInstruction(this.me, accts.playerTmb, this.me, accts.tmbMint, accts.tokenProgram),
+      ])
+      .rpc();
   }
 
   async claimHolding(asset: PublicKey, index: number): Promise<string> {
