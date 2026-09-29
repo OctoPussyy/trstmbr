@@ -108,6 +108,8 @@ export interface Rescued {
     lastOwner: PublicKey;
     fee: BN;
     burnedAmount: BN;
+    /** TMB sent to the treasury wallet (25% by default) */
+    treasuryAmount: BN;
     credited: BN;
 }
 /** Where a Bro currently is, from the player's point of view. */

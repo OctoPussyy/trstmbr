@@ -36,7 +36,13 @@ if (!constants.includes(`declare_id!("${programId}")`)) {
   throw new Error(`declare_id! in constants.rs does not contain ${programId}. Run scripts/sync-keys.sh.`);
 }
 
-run("anchor", ["build", "--", "--no-default-features", "--features", cluster]);
+// 1) anchor build: refreshes the IDL (default features)
+run("anchor", ["build"]);
+// 2) the binary that gets deployed: cluster feature, no on-chain IDL instructions, no ix-name logs (smaller = less
+//    rent). Mainnet is built as SBPF v0 because v3 may not be enabled there yet (devnet accepts v3).
+const sbf = ["build-sbf", "--manifest-path", "programs/tmb_game/Cargo.toml", "--no-default-features", "--features", `${cluster},no-idl,no-log-ix-name`];
+if (cluster === "mainnet") sbf.push("--arch", "v0");
+run("cargo", sbf);
 const deployArgs = ["program", "deploy", "target/deploy/tmb_game.so", "--program-id", progKp, "--url", rpc, "--keypair", keypair];
 const ua = arg("upgrade-authority");
 if (ua) deployArgs.push("--upgrade-authority", ua);

@@ -106,6 +106,8 @@ export interface Rescued {
   lastOwner: PublicKey;
   fee: BN;
   burnedAmount: BN;
+  /** TMB sent to the treasury wallet (25% by default) */
+  treasuryAmount: BN;
   credited: BN;
 }
 

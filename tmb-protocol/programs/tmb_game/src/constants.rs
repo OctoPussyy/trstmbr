@@ -30,6 +30,9 @@ pub const MAX_HOLDINGS: usize = 8;
 pub const MAX_NAME_LEN: usize = 32;
 pub const MAX_URI_LEN: usize = 200;
 pub const BPS_DENOM: u64 = 10_000;
+/// Share of every rescue fee sent (as TMB) to the treasury wallet. The rest after the burn share
+/// (`Config::rescue_burn_bps`, default 50%) is credited to the revived Bro's owner. Default split: 50/25/25.
+pub const RESCUE_TREASURY_BPS: u16 = 2_500;
 
 // --- odds tiers -----------------------------------------------------------------------------
 pub const TIER_NEAR_IMPOSSIBLE: u8 = 0;

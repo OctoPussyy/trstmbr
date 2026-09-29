@@ -58,6 +58,10 @@ integration/            drop-in adapters for the web app (chain.ts, chain-webhoo
 11. **One wallet prompt for the request** (create randomness + commit + `request_spin` in one tx). The settle tx (reveal + `settle_spin`) needs a second
     signature unless you pass `{ settler: Keypair }` (session key / crank) to `spin()`. `settle_spin` is permissionless.
 
+## Program size / deploy cost
+
+`npm run deploy:<cluster>` builds with `--features <cluster>,no-idl,no-log-ix-name` (≈554 KB on devnet). **Mainnet is built as SBPF v0** (`--arch v0`, ≈593 KB) because SBPF v3, the toolchain default, may not be enabled on mainnet yet (devnet accepts it). Program rent ≈ 5.2 SOL per MB. A bigger saving would require dropping Token-2022 support (not done: the TMB mint could be Token-2022).
+
 ## Streak scoping and its trade-off
 
 `BroRecord` is keyed by `(asset, owner wallet)`. A Bro that changes wallets starts a fresh record (streak 0); returning to a
@@ -171,7 +175,7 @@ web app's own source is not in this repo, so field names may need small adjustme
 | `settle_spin` | anyone | reveal; prize, streak, atomic burn + Graveyard on the 5th loss |
 | `cancel_stale_spin` | anyone | after `stale_slots`; counts as a loss, never a refund |
 | `claim_holding` | player | prize token vault → wallet |
-| `rescue` | player | burns `rescue_burn_bps` of the fee (SPL burn), credits the rest, re-mints the fallen Bro to its last owner |
+| `rescue` | player | splits the fee 50% burned (`rescue_burn_bps`, SPL burn) / 25% TMB to the treasury wallet (`RESCUE_TREASURY_BPS`) / 25% credited to the revived Bro's owner; re-mints the fallen Bro to its last owner (needs the treasury's TMB token account: the SDK creates it) |
 
 Events are emitted for every state change (`SpinRequested`, `SpinSettled { asset, owner, amount, odds_tier, outcome, wedge_index, prize_id, new_streak, burned, new_balance, … }`, `Rescued`, …).
 Odds function (identical in `logic.rs` and `sdk/src/odds.ts`): `tmb ≥ high → high; stocks ≥ n ∧ tmb ≥ stock_tmb_high → high; tmb ≥ medium → medium; tmb ≥ low → low; stocks ≥ n ∧ value ≥ min → low; else near_impossible`.

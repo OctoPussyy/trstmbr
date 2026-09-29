@@ -591,7 +591,7 @@ describe("tmb_game", function () {
     await invariants();
   });
 
-  it("10. rescue burns exactly 50% (SPL supply drops), credits 50%, re-mints to the last owner", async () => {
+  it("10. rescue splits the fee 50% burned / 25% treasury / 25% to the owner, re-mints to the last owner", async () => {
     const burned: PublicKey = (globalThis as any).burnedA;
     const rescuerBro = await freshBro(C);
     const fee = tmb(100);
@@ -607,6 +607,7 @@ describe("tmb_game", function () {
     await failsAny(C.client.rescue(rescuerBro, live, fee), "Account does not exist", "AccountNotInitialized", "3012");
 
     const supplyBefore = await supply(conn, tmbMint);
+    const treasuryBefore = await tokenBalance(conn, tmbMint, treasury.publicKey);
     const recBefore = await C.client.fetchBro(rescuerBro);
     const { newAsset } = await C.client.rescue(rescuerBro, burned, fee);
 
@@ -615,7 +616,9 @@ describe("tmb_game", function () {
     const recNew = await A.client.fetchBro(newAsset);
     expect(recNew!.lossStreak).to.equal(0);
     expect("active" in recNew!.status).to.equal(true);
-    expect(recNew!.tmbBalance.toString()).to.equal(tmb(50).toString());
+    expect(recNew!.tmbBalance.toString()).to.equal(tmb(25).toString()); // 25% to the fallen bro's owner
+    // 25% goes to the treasury wallet as TMB
+    expect((await tokenBalance(conn, tmbMint, treasury.publicKey)) - treasuryBefore).to.equal(BigInt(tmb(25).toString()));
     expect((await C.client.fetchBro(rescuerBro))!.tmbBalance.toString()).to.equal(recBefore!.tmbBalance.sub(fee).toString());
     expect(await conn.getAccountInfo(A.client.pdas.graveyard(burned))).to.equal(null);
     // second rescue of the same Bro is impossible

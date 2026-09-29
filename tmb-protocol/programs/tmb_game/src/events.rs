@@ -134,6 +134,9 @@ pub struct Rescued {
     pub last_owner: Pubkey,
     pub fee: u64,
     pub burned_amount: u64,
+    /// TMB sent to the treasury wallet (25% by default)
+    pub treasury_amount: u64,
+    /// TMB credited to the revived Bro (its owner's share, 25% by default)
     pub credited: u64,
 }
 #[event]

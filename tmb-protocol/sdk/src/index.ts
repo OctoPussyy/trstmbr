@@ -564,6 +564,7 @@ export class TmbClient {
     const grave = await this.program.account.graveyard.fetch(this.pdas.graveyard(burnedAsset));
     const newAsset = Keypair.generate();
     const tokenProgram = await this.tokenProgramFor(cfg.tmbMint);
+    const treasuryTmb = getAssociatedTokenAddressSync(cfg.tmbMint, cfg.treasury, true, tokenProgram);
     const signature = await this.program.methods
       .rescue(new BN(fee.toString()))
       .accountsPartial({
@@ -579,10 +580,16 @@ export class TmbClient {
         vault: this.pdas.vault,
         tmbMint: cfg.tmbMint,
         vaultTmb: getAssociatedTokenAddressSync(cfg.tmbMint, this.pdas.vault, true, tokenProgram),
+        treasury: cfg.treasury,
+        treasuryTmb,
         tokenProgram,
         mplCoreProgram: MPL_CORE_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
+      // the treasury's TMB account must exist to receive its 25% (the rescuer pays its rent once)
+      .preInstructions([
+        createAssociatedTokenAccountIdempotentInstruction(this.me, treasuryTmb, cfg.treasury, cfg.tmbMint, tokenProgram),
+      ])
       .signers([newAsset])
       .rpc();
     return { signature, newAsset: newAsset.publicKey };

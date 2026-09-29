@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{self, Burn, Mint, TokenAccount, TokenInterface};
+use anchor_spl::token_interface::{
+    self, Burn, Mint, TokenAccount, TokenInterface, TransferChecked,
+};
 
 use crate::constants::*;
 use crate::errors::TmbError;
@@ -8,9 +10,11 @@ use crate::logic::bps_of;
 use crate::state::*;
 use crate::utils::{core_mint, vault_seeds};
 
-/// Rescues a burned Bro. `fee` comes out of the rescuer's Bro balance; `rescue_burn_bps` of it is
-/// SPL-burned from the vault, the rest is credited to the revived Bro, which is re-minted (a burned
-/// Core asset can't be un-burned) to the original last owner with the original name/uri.
+/// Rescues a burned Bro. `fee` comes out of the rescuer's Bro balance and is split:
+///   * `rescue_burn_bps` (default 50%) SPL-burned from the vault,
+///   * `RESCUE_TREASURY_BPS` (25%) sent as TMB to the treasury wallet's token account,
+///   * the rest (25%) credited to the revived Bro, which is re-minted (a burned Core asset can't be
+///     un-burned) to the original last owner with the original name/uri.
 pub fn handler(ctx: Context<Rescue>, fee: u64) -> Result<()> {
     let a = ctx.accounts;
     require!(!a.config.paused, TmbError::Paused);
@@ -31,7 +35,13 @@ pub fn handler(ctx: Context<Rescue>, fee: u64) -> Result<()> {
         require!(r.tmb_balance >= fee, TmbError::NotEnoughBags);
     }
     let burn_amount = bps_of(fee, a.config.rescue_burn_bps).ok_or(TmbError::Overflow)?;
-    let credit = fee.checked_sub(burn_amount).ok_or(TmbError::Overflow)?;
+    // treasury share never pushes burn + treasury past 100% of the fee
+    let treasury_bps = RESCUE_TREASURY_BPS.min(10_000u16.saturating_sub(a.config.rescue_burn_bps));
+    let treasury_amount = bps_of(fee, treasury_bps).ok_or(TmbError::Overflow)?;
+    let credit = fee
+        .checked_sub(burn_amount)
+        .and_then(|v| v.checked_sub(treasury_amount))
+        .ok_or(TmbError::Overflow)?;
     require!(
         a.config.collection != Pubkey::default(),
         TmbError::CollectionNotSet
@@ -39,11 +49,13 @@ pub fn handler(ctx: Context<Rescue>, fee: u64) -> Result<()> {
 
     // --- state first ---
     a.rescuer_bro.tmb_balance -= fee;
-    // fee leaves the rescuer's balance; only the credited part stays as user balance, burn leaves the vault
+    // fee leaves the rescuer's balance; only the credited part stays as user balance, the burned and
+    // treasury parts leave the vault
     a.config.total_user_tmb = a
         .config
         .total_user_tmb
         .checked_sub(burn_amount)
+        .and_then(|v| v.checked_sub(treasury_amount))
         .ok_or(TmbError::Overflow)?;
     let nb = &mut a.new_bro_record;
     nb.asset = a.new_asset.key();
@@ -76,6 +88,26 @@ pub fn handler(ctx: Context<Rescue>, fee: u64) -> Result<()> {
         )?;
     }
 
+    // --- treasury share, as TMB, to the treasury wallet's token account ---
+    if treasury_amount > 0 {
+        let bump = a.config.vault_bump;
+        let seeds = vault_seeds(&bump);
+        token_interface::transfer_checked(
+            CpiContext::new_with_signer(
+                a.token_program.to_account_info(),
+                TransferChecked {
+                    from: a.vault_tmb.to_account_info(),
+                    mint: a.tmb_mint.to_account_info(),
+                    to: a.treasury_tmb.to_account_info(),
+                    authority: a.vault.to_account_info(),
+                },
+                &[&seeds],
+            ),
+            treasury_amount,
+            a.tmb_mint.decimals,
+        )?;
+    }
+
     // --- re-mint the fallen Bro to its last owner ---
     core_mint(
         &a.mpl_core_program.to_account_info(),
@@ -98,6 +130,7 @@ pub fn handler(ctx: Context<Rescue>, fee: u64) -> Result<()> {
         last_owner: a.graveyard.last_owner,
         fee,
         burned_amount: burn_amount,
+        treasury_amount,
         credited: credit,
     });
     Ok(())
@@ -148,6 +181,17 @@ pub struct Rescue<'info> {
         associated_token::token_program = token_program
     )]
     pub vault_tmb: InterfaceAccount<'info, TokenAccount>,
+    /// CHECK: the configured treasury wallet (owner of `treasury_tmb`).
+    #[account(address = config.treasury)]
+    pub treasury: UncheckedAccount<'info>,
+    /// The treasury's TMB token account (the client creates it if missing).
+    #[account(
+        mut,
+        associated_token::mint = tmb_mint,
+        associated_token::authority = treasury,
+        associated_token::token_program = token_program
+    )]
+    pub treasury_tmb: InterfaceAccount<'info, TokenAccount>,
     pub token_program: Interface<'info, TokenInterface>,
     /// CHECK: pinned to the Metaplex Core program.
     #[account(address = mpl_core::ID)]
