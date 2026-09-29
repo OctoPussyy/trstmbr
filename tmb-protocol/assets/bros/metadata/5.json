@@ -1,0 +1,22 @@
+{
+  "name": "Trust Me Bro",
+  "symbol": "TMB",
+  "description": "Trust me, bro. Five losses and I'm gone forever.",
+  "image": "https://raw.githubusercontent.com/OctoPussyy/trstmbr/claude/build-complete-feature-adg350/tmb-protocol/assets/bros/5.png",
+  "external_url": "https://raw.githubusercontent.com/OctoPussyy/trstmbr/claude/build-complete-feature-adg350/tmb-protocol/assets/bros",
+  "attributes": [
+    {
+      "trait_type": "Variant",
+      "value": "5"
+    }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://raw.githubusercontent.com/OctoPussyy/trstmbr/claude/build-complete-feature-adg350/tmb-protocol/assets/bros/5.png",
+        "type": "image/png"
+      }
+    ]
+  }
+}

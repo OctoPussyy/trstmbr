@@ -34,6 +34,8 @@ export interface ParamsJson {
   collection_name: string;
   collection_uri: string;
   bonus_uri: string;
+  /** Public folder holding 1..5.png + metadata/1..5.json (see scripts/make-metadata.ts) */
+  assets_base_url?: string;
 }
 
 const scale = (ui: number, decimals: number) => new BN(Math.round(ui * 10 ** decimals).toString());

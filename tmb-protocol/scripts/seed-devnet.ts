@@ -5,7 +5,7 @@
  *
  *   ts-node scripts/seed-devnet.ts [--bros 3] [--vault-tmb 250000000]
  */
-import { PublicKey } from "@solana/web3.js";
+import { pickBro } from "@tmb/sdk";
 import { airdropIfLow, arg, context, ensureMockMints, fundDevVault, isInitialized } from "./lib";
 
 (async () => {

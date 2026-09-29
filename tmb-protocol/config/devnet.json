@@ -49,7 +49,8 @@
     "reward_wallet": "",
     "pauser": "",
     "collection_name": "Trust Me Bros (devnet)",
-    "collection_uri": "https://example.com/tmb/collection.json",
-    "bonus_uri": ""
+    "collection_uri": "https://raw.githubusercontent.com/OctoPussyy/trstmbr/claude/build-complete-feature-adg350/tmb-protocol/assets/bros/metadata/1.json",
+    "bonus_uri": "",
+    "assets_base_url": "https://raw.githubusercontent.com/OctoPussyy/trstmbr/claude/build-complete-feature-adg350/tmb-protocol/assets/bros"
   }
 }
