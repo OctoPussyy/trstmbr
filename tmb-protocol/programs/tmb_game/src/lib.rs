@@ -91,6 +91,10 @@ pub mod tmb_game {
     pub fn request_spin(ctx: Context<RequestSpin>, amount: u64) -> Result<()> {
         instructions::request_spin::handler(ctx, amount)
     }
+    /// Turbo: `count` (1..=5) spins from one commit/reveal; see `settle_spin`.
+    pub fn request_turbo_spin(ctx: Context<RequestSpin>, amount: u64, count: u8) -> Result<()> {
+        instructions::request_spin::handler_turbo(ctx, amount, count)
+    }
     pub fn settle_spin(ctx: Context<SettleSpin>) -> Result<()> {
         instructions::settle_spin::handler(ctx)
     }

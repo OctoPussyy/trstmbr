@@ -97,8 +97,10 @@ pub struct SpinRequested {
     pub odds_tier: u8,
     pub commit_slot: u64,
     pub loss_streak: u8,
-    /// True when a loss on this spin burns the Bro.
+    /// True when a loss streak inside this request can burn the Bro.
     pub at_stake: bool,
+    /// Number of spins in this request (turbo > 1).
+    pub count: u8,
     pub randomness_account: Pubkey,
 }
 #[event]
@@ -117,6 +119,10 @@ pub struct SpinSettled {
     pub burned: bool,
     pub new_balance: u64,
     pub bonus_asset: Pubkey,
+    /// 0-based position of this spin inside its request (always 0 for a normal spin).
+    pub spin_index: u8,
+    /// How many spins the request held.
+    pub spin_count: u8,
 }
 #[event]
 pub struct HoldingClaimed {

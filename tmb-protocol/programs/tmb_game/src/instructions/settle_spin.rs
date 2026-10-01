@@ -41,16 +41,32 @@ fn vault_balance_for(remaining: &[AccountInfo], vault: &Pubkey, mint: &Pubkey) -
     err!(TmbError::MissingAccounts)
 }
 
+/// Vault balance of every Token-prize mint, read once per settle (they can't change inside it).
 #[inline(never)]
+fn token_balances(
+    entries: &[Prize],
+    vault: &Pubkey,
+    remaining: &[AccountInfo],
+) -> Result<[u64; MAX_PRIZES]> {
+    let mut out = [0u64; MAX_PRIZES];
+    for (i, p) in entries.iter().enumerate() {
+        if p.kind == PrizeKind::Token {
+            out[i] = vault_balance_for(remaining, vault, &p.mint)?;
+        }
+    }
+    Ok(out)
+}
+
+#[inline(never)]
+#[allow(clippy::too_many_arguments)]
 fn eligibility(
     entries: &[Prize],
     config: &Config,
     bro: &BroRecord,
     vault_tmb_amount: u64,
-    vault: &Pubkey,
-    remaining: &[AccountInfo],
-    bonus_present: bool,
-) -> Result<[bool; MAX_PRIZES]> {
+    token_bal: &[u64; MAX_PRIZES],
+    bonus_ok: bool,
+) -> [bool; MAX_PRIZES] {
     let pool = config.pool(vault_tmb_amount);
     let mut out = [false; MAX_PRIZES];
     for (i, p) in entries.iter().enumerate() {
@@ -61,15 +77,14 @@ fn eligibility(
                     && bro.tmb_balance.checked_add(p.amount).is_some()
             }
             PrizeKind::Token => {
-                let bal = vault_balance_for(remaining, vault, &p.mint)?;
                 let has_room = bro.holdings.iter().any(|h| h.mint == p.mint)
                     || bro.holdings.len() < MAX_HOLDINGS;
-                has_room && token_payout_allowed(bal, p.amount, config.max_payout_bps)
+                has_room && token_payout_allowed(token_bal[i], p.amount, config.max_payout_bps)
             }
-            PrizeKind::BonusBro => bonus_present && config.minted < config.max_supply,
+            PrizeKind::BonusBro => bonus_ok && config.minted < config.max_supply,
         };
     }
-    Ok(out)
+    out
 }
 
 fn credit_holding(bro: &mut BroRecord, p: &Prize) -> Result<()> {
@@ -91,6 +106,11 @@ fn credit_holding(bro: &mut BroRecord, p: &Prize) -> Result<()> {
 
 /// Reveal phase. Permissionless: the player's client (or any crank) submits it right after
 /// Switchboard's `revealIx`.
+///
+/// A request holds `count` spins (1 normally, up to MAX_TURBO). They are played IN ORDER from one
+/// revealed value (`derive_seed`): each spin's odds tier comes from the running balance/holdings, wins
+/// credit the Bro before the next spin, any win resets the streak, and reaching the burn streak burns the
+/// Bro at once (the remaining spins of the request are not played).
 pub fn handler(ctx: Context<SettleSpin>) -> Result<()> {
     let a = ctx.accounts;
     require!(!a.spin_request.resolved, TmbError::NoSpinPending);
@@ -104,7 +124,6 @@ pub fn handler(ctx: Context<SettleSpin>) -> Result<()> {
     );
     require!(rd.reveal_slot > rd.seed_slot, TmbError::RandomnessNotReady);
     require!(rd.value != [0u8; 32], TmbError::RandomnessNotReady);
-    let (r1, r2) = roll(&rd.value);
     // Whoever cranks must supply the bonus asset if the wheel has a Bonus Bro wedge; otherwise a
     // cranker could make that wedge ineligible and skew the odds.
     require!(
@@ -117,65 +136,120 @@ pub fn handler(ctx: Context<SettleSpin>) -> Result<()> {
         TmbError::MissingAccounts
     );
 
-    // --- win roll + prize pick ---
-    let tier = a.spin_request.odds_tier as usize;
-    require!(tier < 4, TmbError::StaleRandomness);
-    let won_roll = is_win(r1, a.config.odds_bps[tier]);
+    let count = a.spin_request.count.max(1);
+    require!(count <= MAX_TURBO, TmbError::InvalidSpinAmount);
+    let amount = a.spin_request.amount;
     let rekt = rekt_index(&a.prizes.entries).ok_or(TmbError::MissingRektWedge)?;
-    let mut picked: Option<usize> = None;
-    if won_roll {
-        let elig = eligibility(
-            &a.prizes.entries,
-            &a.config,
-            &a.bro_record,
-            a.vault_tmb.amount,
-            &a.vault.key(),
-            ctx.remaining_accounts,
-            a.bonus_asset.is_some(),
-        )?;
-        picked = pick_weighted(&a.prizes.entries, &elig, r2);
-    }
-
-    // --- state transitions (before any CPI) ---
-    let prize: Option<Prize> = picked.map(|i| a.prizes.entries[i]);
+    let mut token_bal: Option<[u64; MAX_PRIZES]> = None;
+    // balance before the first spin's fee (fees for all spins were debited at request time)
+    let mut virtual_balance = a
+        .bro_record
+        .tmb_balance
+        .checked_add(amount.checked_mul(count as u64).ok_or(TmbError::Overflow)?)
+        .ok_or(TmbError::Overflow)?;
     let mut bonus_key = Pubkey::default();
-    let mut mint_bonus = false;
+    let mut bonus_used = false;
     let mut burned = false;
-    match &prize {
-        Some(p) => {
-            match p.kind {
-                PrizeKind::Tmb => {
-                    a.bro_record.tmb_balance = a
-                        .bro_record
-                        .tmb_balance
-                        .checked_add(p.amount)
-                        .ok_or(TmbError::Overflow)?;
-                    a.config.total_user_tmb = a
-                        .config
-                        .total_user_tmb
-                        .checked_add(p.amount)
-                        .ok_or(TmbError::Overflow)?;
-                }
-                PrizeKind::Token => credit_holding(&mut a.bro_record, p)?,
-                PrizeKind::BonusBro => {
-                    mint_bonus = true;
-                    a.config.minted = a.config.minted.checked_add(1).ok_or(TmbError::Overflow)?;
-                }
-                PrizeKind::None => {}
+
+    for i in 0..count {
+        // --- this spin's randomness, tier, win roll and prize pick ---
+        let (r1, r2) = roll(&derive_seed(&rd.value, i, count));
+        let tier = odds_tier_with_balance(&a.bro_record, &a.config.thresholds, virtual_balance);
+        let won_roll = is_win(r1, a.config.odds_bps[tier as usize]);
+        let mut picked: Option<usize> = None;
+        if won_roll {
+            if token_bal.is_none() {
+                token_bal = Some(token_balances(
+                    &a.prizes.entries,
+                    &a.vault.key(),
+                    ctx.remaining_accounts,
+                )?);
             }
-            a.bro_record.loss_streak = 0;
+            let elig = eligibility(
+                &a.prizes.entries,
+                &a.config,
+                &a.bro_record,
+                a.vault_tmb.amount,
+                token_bal.as_ref().unwrap(),
+                a.bonus_asset.is_some() && !bonus_used,
+            );
+            picked = pick_weighted(&a.prizes.entries, &elig, r2);
         }
-        None => {
-            burned = apply_loss(&a.config, &mut a.bro_record);
+
+        // --- state transitions (CPIs for a bonus mint / burn happen after the loop) ---
+        let prize: Option<Prize> = picked.map(|k| a.prizes.entries[k]);
+        let mut tmb_won = 0u64;
+        match &prize {
+            Some(p) => {
+                match p.kind {
+                    PrizeKind::Tmb => {
+                        tmb_won = p.amount;
+                        a.bro_record.tmb_balance = a
+                            .bro_record
+                            .tmb_balance
+                            .checked_add(p.amount)
+                            .ok_or(TmbError::Overflow)?;
+                        a.config.total_user_tmb = a
+                            .config
+                            .total_user_tmb
+                            .checked_add(p.amount)
+                            .ok_or(TmbError::Overflow)?;
+                    }
+                    PrizeKind::Token => credit_holding(&mut a.bro_record, p)?,
+                    PrizeKind::BonusBro => {
+                        bonus_used = true;
+                        a.config.minted =
+                            a.config.minted.checked_add(1).ok_or(TmbError::Overflow)?;
+                    }
+                    PrizeKind::None => {}
+                }
+                a.bro_record.loss_streak = 0;
+            }
+            None => {
+                burned = apply_loss(&a.config, &mut a.bro_record);
+            }
+        }
+        // sequential semantics: pay this spin's fee, then add what it won
+        virtual_balance = virtual_balance
+            .checked_sub(amount)
+            .ok_or(TmbError::Overflow)?
+            .checked_add(tmb_won)
+            .ok_or(TmbError::Overflow)?;
+
+        let is_bonus = matches!(&prize, Some(p) if p.kind == PrizeKind::BonusBro);
+        if is_bonus {
+            bonus_key = a.bonus_asset.as_ref().ok_or(TmbError::InvalidAsset)?.key();
+        }
+        let (outcome, wedge) = match picked {
+            Some(k) => (OUTCOME_WIN, k as u8),
+            None => (OUTCOME_LOSS, rekt as u8),
+        };
+        emit_settled(
+            &a.bro_record,
+            &a.spin_request,
+            tier,
+            outcome,
+            wedge,
+            prize.as_ref(),
+            burned,
+            if is_bonus {
+                bonus_key
+            } else {
+                Pubkey::default()
+            },
+            i,
+            count,
+        );
+        if burned {
+            break; // the Bro is gone: the rest of the request is not played
         }
     }
     a.bro_record.pending_spin = None;
     a.spin_request.resolved = true;
 
     // --- CPIs ---
-    if mint_bonus {
+    if bonus_used {
         let bonus = a.bonus_asset.as_ref().ok_or(TmbError::InvalidAsset)?;
-        bonus_key = bonus.key();
         let parent = read_bro_asset(&a.asset.to_account_info(), &a.config.collection)?;
         let uri = if a.config.bonus_uri.is_empty() {
             parent.uri
@@ -231,21 +305,6 @@ pub fn handler(ctx: Context<SettleSpin>) -> Result<()> {
             ctx.bumps.graveyard,
         )?;
     }
-
-    let (outcome, wedge) = if prize.is_some() {
-        (OUTCOME_WIN, picked.unwrap() as u8)
-    } else {
-        (OUTCOME_LOSS, rekt as u8)
-    };
-    emit_settled(
-        &a.bro_record,
-        &a.spin_request,
-        outcome,
-        wedge,
-        prize.as_ref(),
-        burned,
-        bonus_key,
-    );
     Ok(())
 }
 

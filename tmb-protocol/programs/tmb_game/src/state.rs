@@ -145,6 +145,8 @@ pub struct SpinRequest {
     pub at_stake: bool,
     pub resolved: bool,
     pub bump: u8,
+    /// Number of spins in this request (1 = a normal spin, up to MAX_TURBO).
+    pub count: u8,
 }
 
 #[account]

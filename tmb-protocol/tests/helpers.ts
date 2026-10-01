@@ -141,3 +141,63 @@ export function buildPrizes(
   const byId: Record<string, PublicKey> = { tsla: mints.tsla, gme: mints.gme, doge: mints.doge };
   return json.map((p) => prizeFromJson({ ...p, mint: byId[p.id]?.toBase58() ?? undefined }, DECIMALS));
 }
+
+// ---------------------------------------------------------------------------------------------
+// Turbo helpers: mirror programs/tmb_game/src/logic.rs so tests can search for oracle values that
+// produce an exact win/lose pattern.
+// ---------------------------------------------------------------------------------------------
+import { createHash, randomBytes } from "crypto";
+import { computeOddsTier } from "@tmb/sdk";
+
+export type TurboStep = { win: boolean; tmbWon: bigint; wedge: number | null };
+
+export function simulateTurbo(
+  value: Uint8Array,
+  p: { thresholds: any; oddsBps: number[]; startBalance: bigint; amount: bigint; count: number; prizes: Prize[] },
+): TurboStep[] {
+  let v = p.startBalance;
+  const steps: TurboStep[] = [];
+  for (let i = 0; i < p.count; i++) {
+    const seed = p.count <= 1 ? Buffer.from(value) : createHash("sha256").update(Buffer.from(value)).update(Buffer.from([i])).digest();
+    const r1 = (seed[0] | (seed[1] << 8)) % 10000;
+    const r2 = seed.readBigUInt64LE(2);
+    const tier = computeOddsTier(p.thresholds, v.toString() as any, 0, 0 as any);
+    const win = r1 < p.oddsBps[tier];
+    let wedge: number | null = null;
+    let tmbWon = 0n;
+    if (win) {
+      const elig = p.prizes.map((x) => prizeKindName(x.kind) !== "none");
+      const total = p.prizes.reduce((a, x, k) => a + (elig[k] ? BigInt(x.weight) : 0n), 0n);
+      let pick = r2 % total;
+      for (let k = 0; k < p.prizes.length; k++) {
+        if (!elig[k]) continue;
+        const w = BigInt(p.prizes[k].weight);
+        if (pick < w) { wedge = k; break; }
+        pick -= w;
+      }
+      if (prizeKindName(p.prizes[wedge!].kind) === "tmb") tmbWon = BigInt(p.prizes[wedge!].amount.toString());
+    }
+    steps.push({ win, tmbWon, wedge });
+    v = v - p.amount + tmbWon;
+  }
+  return steps;
+}
+
+/** Random 32 bytes whose turbo outcome matches `pattern` ("L" lose / "W" win); wins must be TMB prizes. */
+export function findTurboValue(
+  pattern: ("L" | "W")[],
+  p: { thresholds: any; oddsBps: number[]; startBalance: bigint; amount: bigint; prizes: Prize[] },
+): Uint8Array {
+  for (let n = 0; n < 2_000_000; n++) {
+    const v = randomBytes(32);
+    v[31] |= 1;
+    const steps = simulateTurbo(v, { ...p, count: pattern.length });
+    let ok = true;
+    for (let i = 0; i < pattern.length && ok; i++) {
+      if (pattern[i] === "L") ok = !steps[i].win;
+      else ok = steps[i].win && steps[i].tmbWon > 0n;
+    }
+    if (ok) return new Uint8Array(v);
+  }
+  throw new Error("no value found for pattern " + pattern.join(""));
+}

@@ -22,7 +22,15 @@ pub fn handler(ctx: Context<CancelStaleSpin>) -> Result<()> {
     require!(a.config.prizes_ready, TmbError::PrizeTableInvalid);
     let rekt = rekt_index(&a.prizes.entries).ok_or(TmbError::MissingRektWedge)?;
 
-    let burned = apply_loss(&a.config, &mut a.bro_record);
+    // a stale request counts every spin in it as a loss (a turbo can't be withheld either)
+    let spins = a.spin_request.count.max(1);
+    let mut burned = false;
+    for _ in 0..spins {
+        burned = apply_loss(&a.config, &mut a.bro_record);
+        if burned {
+            break;
+        }
+    }
     a.bro_record.pending_spin = None;
     a.spin_request.resolved = true;
 
@@ -58,11 +66,14 @@ pub fn handler(ctx: Context<CancelStaleSpin>) -> Result<()> {
     emit_settled(
         &a.bro_record,
         &a.spin_request,
+        a.spin_request.odds_tier,
         OUTCOME_STALE_LOSS,
         rekt as u8,
         None,
         burned,
         Pubkey::default(),
+        0,
+        spins,
     );
     Ok(())
 }

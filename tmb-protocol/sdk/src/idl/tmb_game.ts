@@ -1651,6 +1651,118 @@ export type TmbGame = {
       ]
     },
     {
+      "name": "requestTurboSpin",
+      "docs": [
+        "Turbo: `count` (1..=5) spins from one commit/reveal; see `settle_spin`."
+      ],
+      "discriminator": [
+        62,
+        80,
+        128,
+        96,
+        225,
+        86,
+        156,
+        39
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset"
+        },
+        {
+          "name": "broRecord",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  111
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spinRequest",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  112,
+                  105,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset"
+              },
+              {
+                "kind": "account",
+                "path": "bro_record.total_spins",
+                "account": "broRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomnessAccount"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "count",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "rescue",
       "discriminator": [
         42,
@@ -4378,6 +4490,13 @@ export type TmbGame = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "count",
+            "docs": [
+              "Number of spins in this request (1 = a normal spin, up to MAX_TURBO)."
+            ],
+            "type": "u8"
           }
         ]
       }
@@ -4414,9 +4533,16 @@ export type TmbGame = {
           {
             "name": "atStake",
             "docs": [
-              "True when a loss on this spin burns the Bro."
+              "True when a loss streak inside this request can burn the Bro."
             ],
             "type": "bool"
+          },
+          {
+            "name": "count",
+            "docs": [
+              "Number of spins in this request (turbo > 1)."
+            ],
+            "type": "u8"
           },
           {
             "name": "randomnessAccount",
@@ -4489,6 +4615,20 @@ export type TmbGame = {
           {
             "name": "bonusAsset",
             "type": "pubkey"
+          },
+          {
+            "name": "spinIndex",
+            "docs": [
+              "0-based position of this spin inside its request (always 0 for a normal spin)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "spinCount",
+            "docs": [
+              "How many spins the request held."
+            ],
+            "type": "u8"
           }
         ]
       }

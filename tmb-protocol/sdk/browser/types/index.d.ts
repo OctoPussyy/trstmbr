@@ -94,15 +94,24 @@ export declare class TmbClient {
             to: PublicKey;
             lamports: number;
         };
+        count?: number;
     }): Promise<{
         requestSig: string;
         spinRequest: PublicKey;
         randomness: PublicKey;
     }>;
+    /**
+     * TURBO: `count` (2..5) spins from one request, one oracle reveal and the same two wallet popups as a
+     * single spin. The program plays them in order (wins credit the Bro before the next spin, a win resets
+     * the streak, reaching the burn streak burns the Bro and ends the run). Returns one event per spin PLAYED.
+     * `amount` is the fee per spin, in TMB base units.
+     */
+    turboSpin(asset: PublicKey, amount: BN | number | bigint, count?: number, opts?: SpinOptions): Promise<SpinSettled[]>;
     /** Step 2 of `spin` (permissionless: any wallet may crank it). */
     settleSpin(asset: PublicKey, spinRequest: PublicKey, randomness: PublicKey, opts?: SpinOptions & {
         owner?: PublicKey;
     }): Promise<SpinSettled>;
+    private settleSig;
     settleIx(p: {
         settler: PublicKey;
         asset: PublicKey;
@@ -126,6 +135,8 @@ export declare class TmbClient {
     }>;
     /** Decodes the SpinSettled event out of a confirmed transaction. */
     readSettled(signature: string): Promise<SpinSettled>;
+    /** Every SpinSettled event of a transaction, in spin order (a turbo emits one per spin played). */
+    readSettledAll(signature: string): Promise<SpinSettled[]>;
     onSpinSettled(cb: (e: SpinSettled, slot: number, signature: string) => void): number;
     onRescued(cb: (e: Rescued, slot: number, signature: string) => void): number;
     removeListener(id: number): Promise<void>;

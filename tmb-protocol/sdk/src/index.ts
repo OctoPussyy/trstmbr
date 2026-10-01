@@ -395,8 +395,9 @@ export class TmbClient {
   async requestSpin(
     asset: PublicKey,
     amount: BN | number | bigint,
-    opts: { fundSettler?: { to: PublicKey; lamports: number } } = {},
+    opts: { fundSettler?: { to: PublicKey; lamports: number }; count?: number } = {},
   ) {
+    const count = opts.count ?? 1;
     const rec = await this.fetchBro(asset);
     if (!rec) throw new Error("no BroRecord for this wallet/asset (deposit the Bro first)");
     // A randomness account may only be re-committed when none of this wallet's spins is still pending.
@@ -406,8 +407,9 @@ export class TmbClient {
     const anyPending = mine.some((r) => r.account.pendingSpin !== null);
     const commit = await this.randomness.commit(this.connection, this.wallet, { fresh: anyPending });
     const spinRequest = this.pdas.spin(asset, rec.totalSpins);
-    const requestIx = await this.program.methods
-      .requestSpin(new BN(amount.toString()))
+    const requestBuilder =
+      count > 1 ? this.program.methods.requestTurboSpin(new BN(amount.toString()), count) : this.program.methods.requestSpin(new BN(amount.toString()));
+    const requestIx = await requestBuilder
       .accountsPartial({
         player: this.me,
         config: this.pdas.config,
@@ -427,6 +429,25 @@ export class TmbClient {
     return { requestSig, spinRequest, randomness: commit.randomness };
   }
 
+  /**
+   * TURBO: `count` (2..5) spins from one request, one oracle reveal and the same two wallet popups as a
+   * single spin. The program plays them in order (wins credit the Bro before the next spin, a win resets
+   * the streak, reaching the burn streak burns the Bro and ends the run). Returns one event per spin PLAYED.
+   * `amount` is the fee per spin, in TMB base units.
+   */
+  async turboSpin(asset: PublicKey, amount: BN | number | bigint, count = 5, opts: SpinOptions = {}): Promise<SpinSettled[]> {
+    if (!Number.isInteger(count) || count < 1 || count > 5) throw new Error("turbo count must be 1..5");
+    let fundSettler: { to: PublicKey; lamports: number } | undefined;
+    if (opts.settler) {
+      const bal = await this.connection.getBalance(opts.settler.publicKey);
+      if (bal < (opts.settlerMinLamports ?? 10_000_000)) fundSettler = { to: opts.settler.publicKey, lamports: opts.settlerTopUpLamports ?? 20_000_000 };
+    }
+    const { requestSig, spinRequest, randomness } = await this.requestSpin(asset, amount, { fundSettler, count });
+    opts.onRequested?.(requestSig);
+    const sig = await this.settleSig(asset, spinRequest, randomness, { ...opts, settleComputeUnits: opts.settleComputeUnits ?? (count > 1 ? 1_000_000 : undefined) });
+    return this.readSettledAll(sig);
+  }
+
   /** Step 2 of `spin` (permissionless: any wallet may crank it). */
   async settleSpin(
     asset: PublicKey,
@@ -434,6 +455,15 @@ export class TmbClient {
     randomness: PublicKey,
     opts: SpinOptions & { owner?: PublicKey } = {},
   ): Promise<SpinSettled> {
+    return this.readSettled(await this.settleSig(asset, spinRequest, randomness, opts));
+  }
+
+  private async settleSig(
+    asset: PublicKey,
+    spinRequest: PublicKey,
+    randomness: PublicKey,
+    opts: SpinOptions & { owner?: PublicKey } = {},
+  ): Promise<string> {
     const cfg = await this.fetchConfig();
     const owner = opts.owner ?? this.me;
     const payer = opts.settler?.publicKey ?? this.me;
@@ -471,7 +501,7 @@ export class TmbClient {
       await send(revealTx);
       sig = await send(settleTx);
     }
-    return this.readSettled(sig);
+    return sig;
   }
 
   async settleIx(p: {
@@ -615,6 +645,17 @@ export class TmbClient {
       if (ev.name === "spinSettled") return ev.data as unknown as SpinSettled;
     }
     throw new Error("SpinSettled event not found in transaction logs");
+  }
+
+  /** Every SpinSettled event of a transaction, in spin order (a turbo emits one per spin played). */
+  async readSettledAll(signature: string): Promise<SpinSettled[]> {
+    const tx = await this.connection.getTransaction(signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
+    if (!tx?.meta?.logMessages) throw new Error(`transaction ${signature} not found`);
+    const parser = new EventParser(this.programId, this.program.coder);
+    const out: SpinSettled[] = [];
+    for (const ev of parser.parseLogs(tx.meta.logMessages)) if (ev.name === "spinSettled") out.push(ev.data as unknown as SpinSettled);
+    if (!out.length) throw new Error("SpinSettled event not found in transaction logs");
+    return out.sort((a, b) => a.spinIndex - b.spinIndex);
   }
 
   onSpinSettled(cb: (e: SpinSettled, slot: number, signature: string) => void): number {

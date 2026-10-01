@@ -353,20 +353,24 @@ pub fn now_slot() -> Result<u64> {
     Ok(Clock::get()?.slot)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn emit_settled(
     bro: &BroRecord,
     spin: &SpinRequest,
+    tier: u8,
     outcome: u8,
     wedge_index: u8,
     prize: Option<&Prize>,
     burned: bool,
     bonus_asset: Pubkey,
+    spin_index: u8,
+    spin_count: u8,
 ) {
     emit!(SpinSettled {
         asset: bro.asset,
         owner: bro.owner,
         amount: spin.amount,
-        odds_tier: spin.odds_tier,
+        odds_tier: tier,
         outcome,
         wedge_index,
         prize_id: prize.map(|p| p.id).unwrap_or([0; 16]),
@@ -376,5 +380,7 @@ pub fn emit_settled(
         burned,
         new_balance: bro.tmb_balance,
         bonus_asset,
+        spin_index,
+        spin_count,
     });
 }

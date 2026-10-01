@@ -25,6 +25,15 @@ pub fn compute_odds_tier(t: &Thresholds, tmb: u64, stock_count: usize, stock_val
     }
 }
 
+/// Odds tier for `balance` plus the Bro's current holdings (used per spin inside a turbo request).
+pub fn odds_tier_with_balance(bro: &BroRecord, t: &Thresholds, balance: u64) -> u8 {
+    let value = bro
+        .holdings
+        .iter()
+        .fold(0u64, |a, h| a.saturating_add(h.usd_value_snapshot));
+    compute_odds_tier(t, balance, bro.holdings.len(), value)
+}
+
 pub fn odds_tier_for(bro: &BroRecord, t: &Thresholds) -> u8 {
     let value = bro
         .holdings
@@ -66,6 +75,15 @@ pub fn roll(value: &[u8; 32]) -> (u16, u64) {
     let mut b = [0u8; 8];
     b.copy_from_slice(&value[2..10]);
     (r1, u64::from_le_bytes(b))
+}
+
+/// Per-spin randomness of a turbo request: sha256(value || index). A single spin (count == 1) uses the
+/// revealed value itself, exactly as before, so normal spins are unchanged.
+pub fn derive_seed(value: &[u8; 32], index: u8, count: u8) -> [u8; 32] {
+    if count <= 1 {
+        return *value;
+    }
+    anchor_lang::solana_program::hash::hashv(&[value.as_ref(), &[index]]).to_bytes()
 }
 
 pub fn is_win(r1: u16, odds_bps: u16) -> bool {
@@ -181,6 +199,18 @@ mod tests {
         assert!(!tmb_payout_allowed(10, 20, 10_000, 0)); // payout > pool
         assert!(token_payout_allowed(1000, 20, 200));
         assert!(!token_payout_allowed(1000, 21, 200));
+    }
+
+    #[test]
+    fn derive_seed_single_is_identity_and_turbo_is_distinct() {
+        let v = [7u8; 32];
+        assert_eq!(derive_seed(&v, 0, 1), v);
+        let seeds: Vec<[u8; 32]> = (0..5).map(|i| derive_seed(&v, i, 5)).collect();
+        for i in 0..5 {
+            for j in (i + 1)..5 {
+                assert_ne!(seeds[i], seeds[j]);
+            }
+        }
     }
 
     proptest! {

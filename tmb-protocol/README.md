@@ -58,6 +58,20 @@ integration/            drop-in adapters for the web app (chain.ts, chain-webhoo
 11. **One wallet prompt for the request** (create randomness + commit + `request_spin` in one tx). The settle tx (reveal + `settle_spin`) needs a second
     signature unless you pass `{ settler: Keypair }` (session key / crank) to `spin()`. `settle_spin` is permissionless.
 
+## Turbo spins (up to 5 per request)
+
+`request_turbo_spin(amount, count)` (and `client.turboSpin(asset, amount, count)`) debits `count` fees, commits ONE Switchboard randomness account and, after ONE reveal, `settle_spin` plays the spins in order:
+
+* spin *i* uses `sha256(revealed_value || i)` (a normal spin, `count == 1`, uses the value itself, so single spins are unchanged);
+* each spin's odds tier comes from the running balance and holdings, exactly as if the spins were played one after another;
+* a TMB win is credited before the next spin, a token win is added to the holdings, any win resets the loss streak;
+* reaching the burn streak burns the Bro immediately and ends the run (spins not yet played are not played; the remaining balance goes to the pool like any burn);
+* at most ONE Bonus Bro can be minted per run (the wedge is ineligible after that);
+* an unsettled turbo that goes stale counts as `count` losses;
+* one `SpinSettled` event per spin played (`spin_index`, `spin_count`).
+
+Wallet cost: the same 2 confirmations as a single spin (request, then reveal+settle signed together). Going to 1 needs the randomness authority to be a session key, which is a further program change.
+
 ## Program size / deploy cost
 
 `npm run deploy:<cluster>` builds with `--features <cluster>,no-idl,no-log-ix-name` (≈554 KB on devnet). **Mainnet is built as SBPF v0** (`--arch v0`, ≈593 KB) because SBPF v3, the toolchain default, may not be enabled on mainnet yet (devnet accepts it). Program rent ≈ 5.2 SOL per MB. A bigger saving would require dropping Token-2022 support (not done: the TMB mint could be Token-2022).

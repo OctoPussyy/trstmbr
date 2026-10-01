@@ -26,6 +26,8 @@ import {
   buildPrizes,
   fails,
   failsAny,
+  findTurboValue,
+  simulateTurbo,
   giveTokens,
   makeMint,
   newClient,
@@ -637,6 +639,100 @@ describe("tmb_game", function () {
     expect(await assetOwner(conn, adminKp, newAsset)).to.equal(B.kp.publicKey.toBase58());
     expect((await B.client.fetchBro(newAsset))!.lossStreak).to.equal(0);
     await invariants();
+  });
+
+  describe("13. TURBO (up to 5 spins, one request, one reveal)", () => {
+    async function plan(asset: PublicKey, pattern: ("L" | "W")[]) {
+      const cfg = await admin.client.fetchConfig();
+      const rec = (await A.client.fetchBro(asset)) ?? (await B.client.fetchBro(asset));
+      return findTurboValue(pattern, {
+        thresholds: cfg.thresholds,
+        oddsBps: cfg.oddsBps,
+        startBalance: BigInt(rec!.tmbBalance.toString()),
+        amount: BigInt(FEE.toString()),
+        prizes,
+      });
+    }
+
+    it("13a. five straight losses burn the Bro on the 5th spin; every spin emits its own event", async () => {
+      const asset = await freshBro(A);
+      A.mock.nextValue = await plan(asset, ["L", "L", "L", "L", "L"]);
+      const evs = await A.client.turboSpin(asset, FEE, 5);
+      expect(evs.length).to.equal(5);
+      evs.forEach((e, i) => { expect(e.spinIndex).to.equal(i); expect(e.spinCount).to.equal(5); expect(e.outcome).to.equal(0); expect(e.newStreak).to.equal(i + 1); });
+      expect(evs.slice(0, 4).every((e) => !e.burned)).to.equal(true);
+      expect(evs[4].burned).to.equal(true);
+      expect(await assetExists(conn, asset)).to.equal(false);
+      const rec = await A.client.fetchBro(asset);
+      expect("burned" in rec!.status).to.equal(true);
+      expect(rec!.tmbBalance.toString()).to.equal("0");
+      await invariants();
+    });
+
+    it("13b. wins inside a turbo are credited to the Bro and reset the streak; balances add up", async () => {
+      const asset = await freshBro(A); // 250 TMB
+      const value = await plan(asset, ["L", "W", "L", "L", "L"]);
+      const cfg = await admin.client.fetchConfig();
+      const steps = simulateTurbo(value, { thresholds: cfg.thresholds, oddsBps: cfg.oddsBps, startBalance: BigInt(tmb(250).toString()), amount: BigInt(FEE.toString()), count: 5, prizes });
+      A.mock.nextValue = value;
+      const evs = await A.client.turboSpin(asset, FEE, 5);
+      expect(evs.length).to.equal(5);
+      expect(evs.map((e) => e.outcome)).to.deep.equal([0, 1, 0, 0, 0]);
+      expect(evs.map((e) => e.newStreak)).to.deep.equal([1, 0, 1, 2, 3]);
+      expect(evs[1].wedgeIndex).to.equal(steps[1].wedge);
+      const won = Number(steps[1].tmbWon) ;
+      const rec = await A.client.fetchBro(asset);
+      expect(num(rec!.tmbBalance)).to.equal(num(tmb(250)) - 5 * num(FEE) + won);
+      expect(rec!.lossStreak).to.equal(3);
+      expect(rec!.pendingSpin).to.equal(null);
+      expect(await assetExists(conn, asset)).to.equal(true);
+      await invariants();
+    });
+
+    it("13c. a burn in the middle ends the run: later spins are not played", async () => {
+      const asset = await freshBro(A);
+      for (let i = 0; i < 3; i++) await spin(A, asset, LOSE); // streak 3, balance 175
+      A.mock.nextValue = await plan(asset, ["L", "L", "L", "L", "L"]);
+      const evs = await A.client.turboSpin(asset, FEE, 5);
+      expect(evs.length).to.equal(2); // loses on spin 1 (streak 4) and spin 2 (streak 5 = burn)
+      expect(evs[1].burned).to.equal(true);
+      expect(await assetExists(conn, asset)).to.equal(false);
+      await invariants();
+    });
+
+    it("13d. invalid counts and insufficient balance are rejected", async () => {
+      const asset = await freshBro(A);
+      const mk = async (count: number) => {
+        const commit = await A.mock.commit(conn, A.client.wallet);
+        const rec = await A.client.fetchBro(asset);
+        const ix = await A.client.program.methods
+          .requestTurboSpin(FEE, count)
+          .accountsPartial({ player: A.kp.publicKey, config: A.client.pdas.config, asset, broRecord: A.client.pdas.bro(asset, A.kp.publicKey), spinRequest: A.client.pdas.spin(asset, rec!.totalSpins), randomnessAccount: commit.randomness })
+          .instruction();
+        return A.client.provider.sendAndConfirm(new anchor.web3.Transaction().add(...commit.commitIxs, ix), commit.signers as Keypair[]);
+      };
+      await fails(mk(0), "InvalidSpinAmount");
+      await fails(mk(6), "InvalidSpinAmount");
+      await A.client.withdrawTmb(asset, tmb(150)); // balance 100 < 5 x 25
+      await fails(A.client.turboSpin(asset, FEE, 5), "NotEnoughBags");
+      // 100 TMB covers a 4-spin turbo
+      A.mock.nextValue = await plan(asset, ["L", "L", "L", "L"]);
+      const evs = await A.client.turboSpin(asset, FEE, 4);
+      expect(evs.length).to.equal(4);
+      await invariants();
+    });
+
+    it("13e. a stale turbo request counts every spin as a loss", async () => {
+      const asset = await freshBro(A);
+      await A.client.requestSpin(asset, FEE, { count: 5 });
+      const cfg = await admin.client.fetchConfig();
+      await waitSlots(conn, num(cfg.staleSlots) + 2);
+      const ev = await C.client.cancelStaleSpin(asset, A.kp.publicKey);
+      expect(ev.outcome).to.equal(2);
+      expect(ev.burned).to.equal(true); // 5 losses
+      expect(await assetExists(conn, asset)).to.equal(false);
+      await invariants();
+    });
   });
 
   it("11. admin role checks", async () => {

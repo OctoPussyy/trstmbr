@@ -99,6 +99,10 @@ export interface SpinSettled {
     burned: boolean;
     newBalance: BN;
     bonusAsset: PublicKey;
+    /** 0-based position inside its request (0 for a normal spin) */
+    spinIndex: number;
+    /** how many spins the request held (1 normal, up to 5 turbo) */
+    spinCount: number;
 }
 export interface Rescued {
     burnedAsset: PublicKey;

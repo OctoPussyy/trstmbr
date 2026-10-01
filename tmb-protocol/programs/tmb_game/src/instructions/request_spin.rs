@@ -10,6 +10,20 @@ use crate::utils::parse_randomness;
 /// Commit phase. Must be sent in the same transaction as (and after) Switchboard's `commitIx`,
 /// so the randomness seed slot is exactly `current_slot - 1` and can't have been peeked at.
 pub fn handler(ctx: Context<RequestSpin>, amount: u64) -> Result<()> {
+    request(ctx, amount, 1)
+}
+
+/// Turbo: `count` (2..=MAX_TURBO) spins from ONE commit/reveal and one wallet confirmation. All fees are
+/// debited now; `settle_spin` plays the spins in order (see there for the exact rules).
+pub fn handler_turbo(ctx: Context<RequestSpin>, amount: u64, count: u8) -> Result<()> {
+    require!(
+        (1..=MAX_TURBO).contains(&count),
+        TmbError::InvalidSpinAmount
+    );
+    request(ctx, amount, count)
+}
+
+fn request(ctx: Context<RequestSpin>, amount: u64, count: u8) -> Result<()> {
     let c = &mut ctx.accounts.config;
     require!(!c.paused, TmbError::Paused);
     require!(c.prizes_ready, TmbError::PrizeTableInvalid);
@@ -22,7 +36,8 @@ pub fn handler(ctx: Context<RequestSpin>, amount: u64) -> Result<()> {
     require!(b.status == BroStatus::Active, TmbError::BroBurned);
     require!(b.in_escrow, TmbError::NotInEscrow);
     require!(b.pending_spin.is_none(), TmbError::SpinPending);
-    require!(b.tmb_balance >= amount, TmbError::NotEnoughBags);
+    let total = amount.checked_mul(count as u64).ok_or(TmbError::Overflow)?;
+    require!(b.tmb_balance >= total, TmbError::NotEnoughBags);
     require!(clock.slot >= b.eligible_slot, TmbError::CooldownActive);
 
     // --- randomness must be freshly committed and unrevealed ---
@@ -41,14 +56,15 @@ pub fn handler(ctx: Context<RequestSpin>, amount: u64) -> Result<()> {
     // --- odds tier from PRE-spin balance + holdings ---
     let tier = odds_tier_for(b, &c.thresholds);
 
-    // --- debit the fee now; it joins the reward pool by accounting ---
-    b.tmb_balance -= amount;
+    // --- debit EVERY spin's fee now; they join the reward pool by accounting ---
+    b.tmb_balance -= total;
     c.total_user_tmb = c
         .total_user_tmb
-        .checked_sub(amount)
+        .checked_sub(total)
         .ok_or(TmbError::Overflow)?;
 
-    let at_stake = b.loss_streak.saturating_add(1) >= c.burn_at_loss_streak;
+    // a loss streak inside this request can reach the burn threshold
+    let at_stake = b.loss_streak.saturating_add(count) >= c.burn_at_loss_streak;
     let s = &mut ctx.accounts.spin_request;
     s.asset = b.asset;
     s.owner = b.owner;
@@ -61,6 +77,7 @@ pub fn handler(ctx: Context<RequestSpin>, amount: u64) -> Result<()> {
     s.at_stake = at_stake;
     s.resolved = false;
     s.bump = ctx.bumps.spin_request;
+    s.count = count;
 
     b.total_spins = b.total_spins.checked_add(1).ok_or(TmbError::Overflow)?;
     b.pending_spin = Some(s.key());
@@ -73,6 +90,7 @@ pub fn handler(ctx: Context<RequestSpin>, amount: u64) -> Result<()> {
         commit_slot: rd.seed_slot,
         loss_streak: b.loss_streak,
         at_stake,
+        count,
         randomness_account: s.randomness_account,
     });
     Ok(())
