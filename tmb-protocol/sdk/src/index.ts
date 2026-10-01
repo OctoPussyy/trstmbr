@@ -558,13 +558,17 @@ export class TmbClient {
     return this.readSettled(sig);
   }
 
-  /** Rescue `burnedAsset` using the Bro `rescuerAsset` (must be staked with enough balance). */
+  /**
+   * BUY a burned Bro: pays `fee` from the staked Bro `rescuerAsset`; the re-minted Bro lands in THIS wallet.
+   * Fee split 50% burned / 25% treasury / 25% to the wallet that lost it.
+   */
   async rescue(rescuerAsset: PublicKey, burnedAsset: PublicKey, fee: BN | number | bigint): Promise<{ signature: string; newAsset: PublicKey }> {
     const cfg = await this.fetchConfig();
     const grave = await this.program.account.graveyard.fetch(this.pdas.graveyard(burnedAsset));
     const newAsset = Keypair.generate();
     const tokenProgram = await this.tokenProgramFor(cfg.tmbMint);
     const treasuryTmb = getAssociatedTokenAddressSync(cfg.tmbMint, cfg.treasury, true, tokenProgram);
+    const lastOwnerTmb = getAssociatedTokenAddressSync(cfg.tmbMint, grave.lastOwner, true, tokenProgram);
     const signature = await this.program.methods
       .rescue(new BN(fee.toString()))
       .accountsPartial({
@@ -575,7 +579,8 @@ export class TmbClient {
         graveyard: this.pdas.graveyard(burnedAsset),
         newAsset: newAsset.publicKey,
         lastOwner: grave.lastOwner,
-        newBroRecord: this.pdas.bro(newAsset.publicKey, grave.lastOwner),
+        newBroRecord: this.pdas.bro(newAsset.publicKey, this.me),
+        lastOwnerTmb,
         collection: cfg.collection,
         vault: this.pdas.vault,
         tmbMint: cfg.tmbMint,
@@ -586,9 +591,11 @@ export class TmbClient {
         mplCoreProgram: MPL_CORE_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      // the treasury's TMB account must exist to receive its 25% (the rescuer pays its rent once)
+      // the treasury and the previous owner each get TMB, so their token accounts must exist
+      // (created here if missing; the rescuer pays the ~0.002 SOL rent once)
       .preInstructions([
         createAssociatedTokenAccountIdempotentInstruction(this.me, treasuryTmb, cfg.treasury, cfg.tmbMint, tokenProgram),
+        createAssociatedTokenAccountIdempotentInstruction(this.me, lastOwnerTmb, grave.lastOwner, cfg.tmbMint, tokenProgram),
       ])
       .signers([newAsset])
       .rpc();

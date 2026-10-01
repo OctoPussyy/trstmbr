@@ -175,7 +175,7 @@ web app's own source is not in this repo, so field names may need small adjustme
 | `settle_spin` | anyone | reveal; prize, streak, atomic burn + Graveyard on the 5th loss |
 | `cancel_stale_spin` | anyone | after `stale_slots`; counts as a loss, never a refund |
 | `claim_holding` | player | prize token vault → wallet |
-| `rescue` | player | splits the fee 50% burned (`rescue_burn_bps`, SPL burn) / 25% TMB to the treasury wallet (`RESCUE_TREASURY_BPS`) / 25% credited to the revived Bro's owner; re-mints the fallen Bro to its last owner (needs the treasury's TMB token account: the SDK creates it) |
+| `rescue` | player | BUYS a burned Bro out of the pool. The fee (from the rescuer's staked Bro) is split 50% burned (`rescue_burn_bps`) / 25% TMB to the treasury (`RESCUE_TREASURY_BPS`) / 25% TMB to the wallet that LOST the Bro. The rescuer gets no fee share: the Bro is re-minted into the RESCUER's wallet (streak 0, empty balance). The original owner may buy their own Bro back. The SDK creates the treasury's / previous owner's TMB token accounts if missing (rescuer pays ~0.002 SOL once) |
 
 Events are emitted for every state change (`SpinRequested`, `SpinSettled { asset, owner, amount, odds_tier, outcome, wedge_index, prize_id, new_streak, burned, new_balance, … }`, `Rescued`, …).
 Odds function (identical in `logic.rs` and `sdk/src/odds.ts`): `tmb ≥ high → high; stocks ≥ n ∧ tmb ≥ stock_tmb_high → high; tmb ≥ medium → medium; tmb ≥ low → low; stocks ≥ n ∧ value ≥ min → low; else near_impossible`.

@@ -1753,7 +1753,70 @@ export type TmbGame = {
           "name": "lastOwner"
         },
         {
+          "name": "lastOwnerTmb",
+          "docs": [
+            "The previous owner's TMB token account (the client creates it if missing)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "lastOwner"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "tmbMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
           "name": "newBroRecord",
+          "docs": [
+            "Record of the re-minted Bro, owned by the RESCUER."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -1771,7 +1834,7 @@ export type TmbGame = {
               },
               {
                 "kind": "account",
-                "path": "lastOwner"
+                "path": "rescuer"
               }
             ]
           }
@@ -4239,9 +4302,9 @@ export type TmbGame = {
             "type": "u64"
           },
           {
-            "name": "credited",
+            "name": "ownerAmount",
             "docs": [
-              "TMB credited to the revived Bro (its owner's share, 25% by default)"
+              "TMB sent to the wallet that lost the Bro (25% by default)"
             ],
             "type": "u64"
           }

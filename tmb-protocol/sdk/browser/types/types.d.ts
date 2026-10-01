@@ -110,7 +110,8 @@ export interface Rescued {
     burnedAmount: BN;
     /** TMB sent to the treasury wallet (25% by default) */
     treasuryAmount: BN;
-    credited: BN;
+    /** TMB sent to the wallet that lost the Bro (25% by default) */
+    ownerAmount: BN;
 }
 /** Where a Bro currently is, from the player's point of view. */
 export interface BroView {

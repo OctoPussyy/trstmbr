@@ -136,8 +136,8 @@ pub struct Rescued {
     pub burned_amount: u64,
     /// TMB sent to the treasury wallet (25% by default)
     pub treasury_amount: u64,
-    /// TMB credited to the revived Bro (its owner's share, 25% by default)
-    pub credited: u64,
+    /// TMB sent to the wallet that lost the Bro (25% by default)
+    pub owner_amount: u64,
 }
 #[event]
 pub struct TmbPriceSet {

@@ -116,7 +116,10 @@ export declare class TmbClient {
     private prizeVaultAccounts;
     /** Anyone may call this once `staleSlots` have passed; it counts as a loss. */
     cancelStaleSpin(asset: PublicKey, owner: PublicKey): Promise<SpinSettled>;
-    /** Rescue `burnedAsset` using the Bro `rescuerAsset` (must be staked with enough balance). */
+    /**
+     * BUY a burned Bro: pays `fee` from the staked Bro `rescuerAsset`; the re-minted Bro lands in THIS wallet.
+     * Fee split 50% burned / 25% treasury / 25% to the wallet that lost it.
+     */
     rescue(rescuerAsset: PublicKey, burnedAsset: PublicKey, fee: BN | number | bigint): Promise<{
         signature: string;
         newAsset: PublicKey;

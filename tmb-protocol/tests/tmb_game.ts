@@ -591,16 +591,12 @@ describe("tmb_game", function () {
     await invariants();
   });
 
-  it("10. rescue splits the fee 50% burned / 25% treasury / 25% to the owner, re-mints to the last owner", async () => {
-    const burned: PublicKey = (globalThis as any).burnedA;
+  it("10. rescue = buying the Bro: 50% burned / 25% treasury / 25% to the previous owner; NFT goes to the RESCUER", async () => {
+    const burned: PublicKey = (globalThis as any).burnedA; // A lost this Bro
     const rescuerBro = await freshBro(C);
     const fee = tmb(100);
 
     await fails(C.client.rescue(rescuerBro, burned, tmb(123)), "InvalidRescueFee");
-
-    // self rescue: A (last owner) can't rescue their own Bro
-    const aBro = await freshBro(A);
-    await fails(A.client.rescue(aBro, burned, fee), "SelfRescue");
 
     // not burned: a live asset has no graveyard entry
     const live: PublicKey = (globalThis as any).broA1;
@@ -608,23 +604,38 @@ describe("tmb_game", function () {
 
     const supplyBefore = await supply(conn, tmbMint);
     const treasuryBefore = await tokenBalance(conn, tmbMint, treasury.publicKey);
+    const ownerBefore = await tokenBalance(conn, tmbMint, A.kp.publicKey);
     const recBefore = await C.client.fetchBro(rescuerBro);
     const { newAsset } = await C.client.rescue(rescuerBro, burned, fee);
 
-    expect(supplyBefore - (await supply(conn, tmbMint))).to.equal(BigInt(tmb(50).toString()));
-    expect(await assetOwner(conn, adminKp, newAsset)).to.equal(A.kp.publicKey.toBase58());
-    const recNew = await A.client.fetchBro(newAsset);
+    expect(supplyBefore - (await supply(conn, tmbMint))).to.equal(BigInt(tmb(50).toString())); // 50% burned
+    expect((await tokenBalance(conn, tmbMint, treasury.publicKey)) - treasuryBefore).to.equal(BigInt(tmb(25).toString())); // 25% treasury
+    expect((await tokenBalance(conn, tmbMint, A.kp.publicKey)) - ownerBefore).to.equal(BigInt(tmb(25).toString())); // 25% to who lost it
+    // the NFT belongs to the RESCUER, with a fresh record
+    expect(await assetOwner(conn, adminKp, newAsset)).to.equal(C.kp.publicKey.toBase58());
+    const recNew = await C.client.fetchBro(newAsset);
     expect(recNew!.lossStreak).to.equal(0);
     expect("active" in recNew!.status).to.equal(true);
-    expect(recNew!.tmbBalance.toString()).to.equal(tmb(25).toString()); // 25% to the fallen bro's owner
-    // 25% goes to the treasury wallet as TMB
-    expect((await tokenBalance(conn, tmbMint, treasury.publicKey)) - treasuryBefore).to.equal(BigInt(tmb(25).toString()));
+    expect(recNew!.tmbBalance.toString()).to.equal("0");
+    expect(recNew!.inEscrow).to.equal(false);
+    // nothing is created for the previous owner
+    expect(await A.client.fetchBro(newAsset)).to.equal(null);
     expect((await C.client.fetchBro(rescuerBro))!.tmbBalance.toString()).to.equal(recBefore!.tmbBalance.sub(fee).toString());
     expect(await conn.getAccountInfo(A.client.pdas.graveyard(burned))).to.equal(null);
-    // second rescue of the same Bro is impossible
+    // a second rescue of the same Bro is impossible
     await failsAny(C.client.rescue(rescuerBro, burned, fee), "Account does not exist", "AccountNotInitialized", "3012");
-    const asset = await A.client.program.account.graveyard.all();
-    expect(asset.length).to.equal(0);
+    expect((await A.client.program.account.graveyard.all()).length).to.equal(0);
+    await invariants();
+  });
+
+  it("10b. the original owner can buy their own Bro back (same split, NFT returns to them)", async () => {
+    const asset = await freshBro(B);
+    for (let i = 0; i < 5; i++) await spin(B, asset, LOSE);
+    expect(await assetExists(conn, asset)).to.equal(false);
+    const shiller = await freshBro(B);
+    const { newAsset } = await B.client.rescue(shiller, asset, tmb(100));
+    expect(await assetOwner(conn, adminKp, newAsset)).to.equal(B.kp.publicKey.toBase58());
+    expect((await B.client.fetchBro(newAsset))!.lossStreak).to.equal(0);
     await invariants();
   });
 
