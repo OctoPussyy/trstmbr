@@ -9,7 +9,7 @@ const G = {
   const POI = World.POI, N = World.N, SIZE = World.SIZE;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), rnd = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
   let W = 0, H = 0, DPR = 1;
-  function resize() { DPR = Math.min(2, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight; cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR); }
+  function resize() { DPR = Math.min(2, window.devicePixelRatio || 1); W = cvs.clientWidth || innerWidth; H = cvs.clientHeight || innerHeight; cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR); }
   addEventListener('resize', resize); resize();
 
   // ---------- input ----------
