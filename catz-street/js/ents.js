@@ -77,7 +77,7 @@ const Ents = (() => {
     if (Math.abs(a.x - b.x) > 140 || Math.abs(a.y - b.y) > 140) return;
     const ca = circles(a), cb = circles(b);
     for (const pa of ca) for (const pb of cb) {
-      let dx = pb.x - pa.x, dy = pb.y - pa.y, d = Math.hypot(dx, dy), rr = pa.r + pb.r;
+      let dx = pb.x - pa.x, dy = pb.y - pa.y, d = Math.hypot(dx, dy), rr = (a.parked || b.parked) ? 38 : pa.r + pb.r;
       if (d >= rr) continue;
       if (d < 0.01) { dx = 1; dy = 0; d = 1; }
       const nx = dx / d, ny = dy / d, pen = rr - d, ma = a.mass, mb = b.mass, tm = ma + mb;
@@ -125,7 +125,7 @@ const Ents = (() => {
     let tot = opts.reduce((s, o) => s + o[1], 0), r = Math.random() * tot, d2 = opts[0][0];
     for (const o of opts) { if ((r -= o[1]) <= 0) { d2 = o[0]; break; } }
     const E = World.lanePoint(c.node, d, -(R / 2 + 34)), X = World.lanePoint(c.node, d2, R / 2 + 34);
-    E.r = 46; X.r = 50;
+    E.r = 46; X.r = 50; E.stop = true; E.node = [ni, nj]; E.axis = d % 2;
     c.route.push(E);
     if (d2 !== d) c.route.push(d % 2 === 0 ? { x: X.x, y: E.y, r: 55 } : { x: E.x, y: X.y, r: 55 });
     c.route.push(X);
@@ -138,7 +138,7 @@ const Ents = (() => {
       const dx = x - c.x, dy = y - c.y, lx = dx * f.x + dy * f.y, ly = dx * s.x + dy * s.y;
       if (lx > c.len / 2 - 4 && lx < look + c.len / 2 && Math.abs(ly) < c.wid / 2 + lat) { const d = lx - c.len / 2; if (!best || d < best.d) best = { d, spd }; }
     };
-    for (const o of cars) { if (o === c || Math.abs(o.x - c.x) > 300 || Math.abs(o.y - c.y) > 300) continue; test(o.x, o.y, 8, Math.max(0, o.speedF)); }
+    for (const o of cars) { if (o === c || Math.abs(o.x - c.x) > 300 || Math.abs(o.y - c.y) > 300) continue; test(o.x, o.y, o.parked ? -10 : 8, Math.max(0, o.speedF)); }
     if (G.player && !G.player.car) test(G.player.x, G.player.y, 12, 0);
     for (const p of peds) { if (p.dead || Math.abs(p.x - c.x) > 300 || Math.abs(p.y - c.y) > 300) continue; test(p.x, p.y, 12, 0); }
     return best;
@@ -160,7 +160,14 @@ const Ents = (() => {
     if (!c.route.length) planNext(c);
     const t = c.route[0];
     if (Math.hypot(t.x - c.x, t.y - c.y) < (t.r || 48)) { c.route.shift(); if (!c.route.length) planNext(c); return; }
-    steerTo(c, t, c.cruise, true, dt);
+    // obey the traffic signal before entering an intersection
+    let hold = false;
+    if (t.stop) {
+      const dist = Math.hypot(t.x - c.x, t.y - c.y), s = World.signal(t.node[0], t.node[1], t.axis, G.T || 0);
+      if (s !== 'G' && dist < 95 && dist > 8 && !(s === 'Y' && dist < 40)) hold = true;
+    }
+    steerTo(c, t, hold ? 0 : c.cruise, true, dt);
+    if (hold) { c.thr = 0; c.brake = c.speedF > 3 ? 1 : 0; if (c.speedF <= 3) { c.vx *= 0.9; c.vy *= 0.9; } c.stuck = 0; }
     if (c.hornT > 0) { c.hornT -= dt; }
   }
   function aiChase(c, dt, tgt) {
@@ -242,7 +249,7 @@ const Ents = (() => {
       if (!p.atk.done && p.atk.t >= mv.S) { p.atk.done = true; if (dp < 56 && !pl.dead && !pl.hidden) G.hurtPlayer(p.atk.dmg, p.x, p.y, p); }
       if (p.atk.t >= mv.total) p.atk = null;
     } else if (p.state === 'cop' || p.state === 'fight') {
-      if (dp > 1500 && !p.keep) p.far = (p.far || 0) + dt; else p.far = 0;
+      if (dp > 3000 && !p.keep) p.far = (p.far || 0) + dt; else p.far = 0;
       if (!pl.dead && (pl.car ? dp < 900 : true)) {
         const tx = pl.x, ty = pl.y;
         if (dp > 46) { mx = dpx / dp; my = dpy / dp; sp = p.kind === 'cop' ? 118 : 100; p.face = dpx >= 0 ? 1 : -1; }
@@ -325,11 +332,11 @@ const Ents = (() => {
     for (const c of cars) carVsPeds(c, pl);
     for (let i = peds.length - 1; i >= 0; i--) {
       const p = peds[i]; updatePed(p, dt, pl);
-      if ((p.dead && p.deadT > 28) || (!p.keep && Math.hypot(p.x - pl.x, p.y - pl.y) > 1900) || (p.far > 6)) peds.splice(i, 1);
+      if ((p.dead && p.deadT > 28) || (!p.keep && Math.hypot(p.x - pl.x, p.y - pl.y) > 4400) || (p.far > 6)) peds.splice(i, 1);
     }
     for (let i = cars.length - 1; i >= 0; i--) {
       const c = cars[i];
-      if ((c.wreck && c.wreckT < 0) || (!c.keep && c.driver !== 'player' && Math.hypot(c.x - pl.x, c.y - pl.y) > 2100)) cars.splice(i, 1);
+      if ((c.wreck && c.wreckT < 0) || (!c.keep && c.driver !== 'player' && !c.parked && Math.hypot(c.x - pl.x, c.y - pl.y) > 4600) || (c.parked && !c.keep && Math.hypot(c.x - pl.x, c.y - pl.y) > 3400)) cars.splice(i, 1);
     }
     for (let i = pickups.length - 1; i >= 0; i--) {
       const k = pickups[i]; k.t += dt;
@@ -472,7 +479,29 @@ const Ents = (() => {
       const p = makePed('civ', q.x, q.y); p.hostile = Math.random() < 0.03; return p;
     }
   }
-  function reset() { cars.length = peds.length = pickups.length = fx.length = skids.length = 0; }
+  // parked cars along the curbs, streamed in around the player
+  let slots = null; const slotCar = new Map();
+  function buildSlots() {
+    slots = []; const rr = World.blocks.length ? 0 : 0;
+    let seed = 1234; const rnd2 = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let k = 0; k <= N; k++) for (let s = 0; s < N; s++) {
+      const a = s * P + R + 70, e = (s + 1) * P - 70, c = World.center(k);
+      for (let t = a; t < e; t += 128) for (const side of [-1, 1]) {
+        if (rnd2() < 0.32) slots.push({ id: slots.length, x: c + side * 79, y: t, a: side > 0 ? Math.PI / 2 : -Math.PI / 2 });   // vertical road k
+        if (rnd2() < 0.32) slots.push({ id: slots.length, x: t, y: c + side * 79, a: side > 0 ? 0 : Math.PI });                  // horizontal road k
+      }
+    }
+  }
+  function streamParked(px, py) {
+    if (!slots) buildSlots();
+    for (const [id, c] of slotCar) if (!cars.includes(c)) slotCar.delete(id);
+    for (const s of slots) {
+      if (slotCar.has(s.id)) continue; const d = Math.hypot(s.x - px, s.y - py); if (d > 1400 || d < 600) continue;
+      const type = pick(['sedan', 'sedan', 'lowrider', 'van', 'sedan', 'sport']), c = makeCar(type, s.x, s.y, s.a + (Math.random() - 0.5) * 0.04, { driver: null });
+      c.parked = true; c.brake = 1; slotCar.set(s.id, c);
+    }
+  }
+  function reset() { slotCar.clear(); cars.length = peds.length = pickups.length = fx.length = skids.length = 0; }
 
-  return { cars, peds, pickups, fx, skids, TYPES, makeCar, makePed, hurtPed, witnessPanic, update, drawCar, drawPed, drawFx, drawSkids, drawPickups, spawnTraffic, spawnPed, damageCar, sparks, reset, pedAttack, rnd, pick, angDiff, clamp };
+  return { cars, peds, pickups, fx, skids, TYPES, streamParked, makeCar, makePed, hurtPed, witnessPanic, update, drawCar, drawPed, drawFx, drawSkids, drawPickups, spawnTraffic, spawnPed, damageCar, sparks, reset, pedAttack, rnd, pick, angDiff, clamp };
 })();

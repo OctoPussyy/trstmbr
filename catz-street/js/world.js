@@ -1,7 +1,7 @@
 // The city: an 8x8 grid of blocks separated by roads. Everything is generated from a seed, no map files.
 // Road k occupies [k*P, k*P+R] on both axes; block (i,j) occupies [i*P+R, i*P+R+B]. Sidewalk = outer SW px of a block.
 const World = (() => {
-  const N = 8, R = 190, B = 450, P = B + R, SW = 46, FH = 44, LO = 46;
+  const N = 8, R = 190, B = 450, P = B + R, SW = 46, FH = 44, LO = 34;
   const SIZE = N * P + R;
   const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];            // dir index: 0 east, 1 south, 2 west, 3 north
 
@@ -150,6 +150,11 @@ const World = (() => {
   function lanePoint(node, d, ahead) {   // point on the lane of direction d, `ahead` px beyond the intersection centre
     const cx = center(node[0]), cy = center(node[1]), r = rvec(d);
     return { x: cx + DX[d] * ahead + r[0] * LO, y: cy + DY[d] * ahead + r[1] * LO };
+  }
+  // traffic signals: a 24 s cycle per intersection, offset so neighbouring lights form a loose green wave
+  function signal(i, j, axis, t) {
+    const cyc = 24, off = ((i * 3.7 + j * 5.3) % cyc + cyc) % cyc, ph = ((t + off) % cyc + cyc) % cyc, s = axis === 0 ? ph : (ph + 12) % cyc;
+    return s < 9.5 ? 'G' : s < 12 ? 'Y' : 'R';
   }
   function nearestNode(x, y) { return [clamp(Math.round((x - R / 2) / P), 0, N), clamp(Math.round((y - R / 2) / P), 0, N)]; }
 
@@ -339,5 +344,5 @@ const World = (() => {
     return mini;
   }
   return { N, R, B, P, SW, FH, LO, SIZE, DX, DY, POI, blocks, center, roadK, isRoad, blockAt, blockIdx, buildingAt, pushCircle, los, districtAt, randomSidewalk, edgePoint,
-    lanePoint, rvec, nearestNode, drawGround, drawBuildings, drawLights, decorList, drawDecor, minimap, MS, clamp };
+    lanePoint, rvec, nearestNode, signal, drawGround, drawBuildings, drawLights, decorList, drawDecor, minimap, MS, clamp };
 })();
