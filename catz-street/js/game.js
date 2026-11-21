@@ -521,6 +521,7 @@ const G = {
     if (!G.inside) { for (let s = 20; s <= horiz / K; s += 12) { if (World.buildingAt(P.x - cx * s, P.y - cy * s)) { hd = Math.max(26, s - 14); break; } } }
 
     const f = hd / (horiz / K); let cxm = (P.x - cx * hd) * K, czm = (P.y - cy * hd) * K, h = 0.9 + (vert - 0.9) * Math.max(0.35, f);
+    if (!G.inside && World.pushCircle(cxm / K, czm / K, 36).hit) h = Math.min(h, 2.75);
     if (G.inside) { const ib = Interior.bounds(); if (ib) { cxm = clamp(cxm, (ib.x0 + 6) * K, (ib.x1 - 6) * K); czm = clamp(czm, (ib.y0 + 6) * K, (ib.y1 - 6) * K); } h = Math.min(h, 3.1); }
     let sx = 0, sz = 0; if (shakeT > 0) { sx = rnd(-1, 1) * shakeA * 0.04; sz = rnd(-1, 1) * shakeA * 0.04; }
     const k = Math.min(1, dt * 14);

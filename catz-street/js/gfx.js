@@ -56,8 +56,8 @@ const Gfx = (() => {
 
   // ------------------------------------------------------------------ sky + time of day
   const BANDS = [[0, 'night'], [4.9, 'night'], [6.3, 'dawn'], [8.6, 'noon'], [15.4, 'noon'], [17.3, 'late_afternoon'], [18.9, 'dusk_2'], [20.5, 'night'], [24, 'night']];
-  const LOOK = { night: { exp: 1.0, env: 0.1, fog: 0.003, sprite: [0.4, 0.46, 0.7] }, dawn: { exp: 0.95, env: 0.9, fog: 0.0026, sprite: [1, 0.86, 0.8] },
-    noon: { exp: 0.78, env: 1, fog: 0.0016, sprite: [1, 1, 1] }, late_afternoon: { exp: 0.85, env: 1, fog: 0.0019, sprite: [1, 0.95, 0.88] }, dusk_2: { exp: 0.95, env: 0.85, fog: 0.0024, sprite: [1, 0.82, 0.88] } };
+  const LOOK = { night: { exp: 1.0, env: 0.15, fog: 0.003, sprite: [0.4, 0.46, 0.7] }, dawn: { exp: 0.95, env: 1.3, fog: 0.0026, sprite: [1, 0.86, 0.8] },
+    noon: { exp: 0.78, env: 1.5, fog: 0.0016, sprite: [1, 1, 1] }, late_afternoon: { exp: 0.85, env: 1.45, fog: 0.0019, sprite: [1, 0.95, 0.88] }, dusk_2: { exp: 0.95, env: 1.25, fog: 0.0024, sprite: [1, 0.82, 0.88] } };
   function bandAt(h) { for (let i = 1; i < BANDS.length; i++) if (h <= BANDS[i][0]) { const a = BANDS[i - 1], b = BANDS[i]; return { A: a[1], B: b[1], t: b[0] > a[0] ? (h - a[0]) / (b[0] - a[0]) : 0 }; } return { A: 'night', B: 'night', t: 0 }; }
   function buildSky() {
     const mat = new THREE.ShaderMaterial({
