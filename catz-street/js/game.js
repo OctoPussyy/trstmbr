@@ -10,7 +10,7 @@ const G = {
   const glc = document.getElementById('gl'), hudc = document.getElementById('hud'), ctx = hudc.getContext('2d');
   let W = 0, H = 0, DPR = 1;
   function resize() {
-    DPR = Math.min(2, window.devicePixelRatio || 1); W = glc.clientWidth || innerWidth; H = glc.clientHeight || innerHeight;
+    DPR = Math.min(2, window.devicePixelRatio || 1); const fr = (glc.parentElement || glc).getBoundingClientRect(); W = Math.round(fr.width) || innerWidth; H = Math.round(fr.height) || innerHeight;
     hudc.width = Math.round(W * DPR); hudc.height = Math.round(H * DPR); Gfx.resize(W, H);
   }
 
@@ -534,7 +534,7 @@ const G = {
   // ---------------------------------------------------------------- rendering
   function render() {
     if (mode === 'loading') { drawBackdrop(); txt(loadMsg + '…', W / 2, H / 2, 26, '#ff4fd8', 'center'); const pw = Math.min(360, W - 80), pr = typeof Assets !== 'undefined' ? Assets.progress : 0; ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(W / 2 - pw / 2, H / 2 + 20, pw, 8); ctx.fillStyle = '#ff4fd8'; ctx.fillRect(W / 2 - pw / 2, H / 2 + 20, pw * pr, 8); txt('Photoscanned assets: Poly Haven (CC0)', W / 2, H / 2 + 56, 12, '#a99bc7', 'center'); return; }
-    if (mode === 'title') { drawTitle(); return; }
+    if (mode === 'title') { drawTitle(); if (H > W * 1.1) { ctx.fillStyle = 'rgba(15,5,35,.85)'; ctx.fillRect(0, H * 0.46, W, 44); txt('⟲  Turn your phone sideways to play', W / 2, H * 0.46 + 28, 15, '#ffd23f', 'center', 3); } return; }
     ambientT -= 1 / 60; if (ambientT <= 0) { ambientT = 0.05; Gfx.setTime(G.hour, ambient(), darkness(), T); }
     Gfx.update(1 / 60);
     if (G.inside) {
@@ -549,6 +549,7 @@ const G = {
     Gfx.render();
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H); uiHits.length = 0;
     drawHUD();
+    if (H > W * 1.1) { ctx.fillStyle = 'rgba(15,5,35,.85)'; ctx.fillRect(0, H * 0.42, W, 44); txt('⟲  Turn your phone sideways for the full view', W / 2, H * 0.42 + 28, 14, '#ffd23f', 'center', 3); }
     if (fade.a > 0) { ctx.fillStyle = `rgba(0,0,0,${clamp(fade.a, 0, 1)})`; ctx.fillRect(0, 0, W, H); }
   }
 
@@ -768,10 +769,10 @@ const G = {
 
   saved = loadSave();
   const QUALITY = (() => { try { const q = localStorage.getItem('gtc3_quality'); if (q) return q; } catch (e) { /* ignore */ } return (matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 500) ? 'low' : 'high'; })();
-  DPR = Math.min(2, window.devicePixelRatio || 1); W = glc.clientWidth || innerWidth; H = glc.clientHeight || innerHeight; hudc.width = Math.round(W * DPR); hudc.height = Math.round(H * DPR);
+  { DPR = Math.min(2, window.devicePixelRatio || 1); const fr = (glc.parentElement || glc).getBoundingClientRect(); W = Math.round(fr.width) || innerWidth; H = Math.round(fr.height) || innerHeight; } hudc.width = Math.round(W * DPR); hudc.height = Math.round(H * DPR);
   Rig.load().then(() => { loadMsg = 'LOADING STREETS'; return Assets.loadAll('dusk_2'); }).then(() => new Promise(res => { loadMsg = 'BUILDING THE CITY'; setTimeout(res, 30); })).then(() => {
     try { Gfx.init(glc, QUALITY); } catch (e) { console.error('GL init failed', e); loadMsg = 'Your browser could not start 3D graphics.'; return; }
-    resize(); addEventListener('resize', resize);
+    resize(); addEventListener('resize', resize); try { new ResizeObserver(() => resize()).observe(glc.parentElement || glc); } catch (e) { /* ignore */ }
     for (const id of ['prison', 'crimson_paw', 'pimp_daddy']) for (const h of [0, 40, 80, 120, 160, 200, 240, 280, 320, 150, -85]) Rig.sprites(id, h);
     for (const id of ['prison', 'crimson_paw', 'pimp_daddy']) for (const h of [0, 40, 80, 120, 160, 200, 240, 280, 320, 150, -85]) Gfx.spriteSet(id, h);
     mode = 'title'; World.minimap();
